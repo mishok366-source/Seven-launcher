@@ -7,6 +7,8 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else "seven-gamehub/winlator-source
 manifest = root / "app/src/main/AndroidManifest.xml"
 styles = root / "app/src/main/res/values/styles.xml"
 strings = root / "app/src/main/res/values/strings.xml"
+menu = root / "app/src/main/res/menu/main_menu.xml"
+main_activity = root / "app/src/main/java/com/winlator/MainActivity.java"
 display = root / "app/src/main/java/com/winlator/XServerDisplayActivity.java"
 launcher = root / "app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java"
 bridge = root / "app/src/main/java/com/winlator/SevenXBridgeActivity.java"
@@ -58,6 +60,22 @@ dark_theme_new = """    <style name="AppThemeDark" parent="@style/AppThemeBase">
         <item name="colorSecondaryVariant">#39324F</item>"""
 replace_once(styles, dark_theme_old, dark_theme_new)
 replace_once(strings, '<string name="app_name">Winlator</string>', '<string name="app_name">SevenX Desktop</string>')
+
+replace_once(
+    menu,
+    '<item android:icon="@drawable/icon_shortcut" android:id="@+id/menu_item_shortcuts" android:title="@string/shortcuts" />',
+    '<item android:icon="@drawable/icon_shortcut" android:id="@+id/menu_item_shortcuts" android:title="Приложения" />'
+)
+replace_once(
+    menu,
+    '<item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />',
+    '<item android:icon="@drawable/icon_run" android:id="@+id/menu_item_desktop" android:title="Рабочий стол" />\\n        <item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />'
+)
+replace_once(
+    main_activity,
+    '            case R.id.menu_item_containers:\\n',
+    '            case R.id.menu_item_desktop:\\n                Intent desktopIntent = new Intent("com.seven.gamehub.action.OPEN_DESKTOP");\\n                desktopIntent.setClass(this, SevenXBridgeActivity.class);\\n                startActivity(desktopIntent);\\n                break;\\n            case R.id.menu_item_containers:\\n'
+)
 
 replace_once(
     launcher,
