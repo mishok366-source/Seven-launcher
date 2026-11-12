@@ -31,6 +31,18 @@
                 android:letterSpacing="0.12"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
+            <Button
+                android:id="@+id/edition_switch_button"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/seven_mode_card"
+                android:text="EDITIONS"
+                android:textAllCaps="false"
+                android:textColor="@color/primary_text"
+                android:textSize="11sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
             <TextView
                 android:id="@+id/seven_brand_subtitle"
                 android:layout_width="wrap_content"
