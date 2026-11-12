@@ -112,8 +112,39 @@ private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(
 
 private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
     return runCatching {
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            input.read() == 0x4D && input.read() == 0x5A
+        context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
+            val dosHeader = ByteArray(64)
+            var headerRead = 0
+            while (headerRead < dosHeader.size) {
+                val count = input.read(dosHeader, headerRead, dosHeader.size - headerRead)
+                if (count < 0) return@use false
+                headerRead += count
+            }
+
+            // IMAGE_DOS_HEADER.e_lfanew is a little-endian file offset at 0x3C.
+            if (dosHeader[0] != 0x4D.toByte() || dosHeader[1] != 0x5A.toByte()) {
+                return@use false
+            }
+            val peOffset = (dosHeader[0x3C].toLong() and 0xFF) or
+                ((dosHeader[0x3D].toLong() and 0xFF) shl 8) or
+                ((dosHeader[0x3E].toLong() and 0xFF) shl 16) or
+                ((dosHeader[0x3F].toLong() and 0xFF) shl 24)
+
+            // Reject unreasonable offsets and malformed/truncated headers.
+            if (peOffset < 64L || peOffset > 1024L * 1024L) return@use false
+            var remaining = peOffset - dosHeader.size
+            while (remaining > 0L) {
+                val skipped = input.skip(remaining)
+                if (skipped <= 0L) {
+                    if (input.read() < 0) return@use false
+                    remaining--
+                } else {
+                    remaining -= skipped
+                }
+            }
+
+            input.read() == 0x50 && input.read() == 0x45 &&
+                input.read() == 0x00 && input.read() == 0x00
         } ?: false
     }.getOrDefault(false)
 }
@@ -389,7 +420,7 @@ private fun LibraryScreen(
                 Spacer(Modifier.height(17.dp))
                 Text("Твой ПК.\nТеперь в кармане.", color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
-                Text("Добавляй EXE-файлы. Поддержку Wine и Proton подключим следующим этапом.",
+                Text("Добавляй EXE-файлы. Поддержку Wine + Box64 подключим следующим этапом.",
                     color = Color(0xFFB5BED0), fontSize = 13.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(18.dp))
                 Button(
