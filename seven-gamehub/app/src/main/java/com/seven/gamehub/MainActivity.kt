@@ -77,6 +77,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.seven.gamehub.runtime.RuntimeLaunchResult
+import com.seven.gamehub.runtime.WindowsRuntime
 
 private val Background = Color(0xFF090B12)
 private val Panel = Color(0xFF141925)
@@ -117,16 +119,6 @@ private fun isInstallerName(name: String): Boolean {
     val baseName = name.substringBeforeLast('.', name).lowercase()
     return baseName == "setup" || baseName.contains("setup") ||
         baseName == "install" || baseName.contains("installer") || baseName.contains("install")
-}
-
-private enum class RuntimeLaunchResult { STARTED, NOT_INSTALLED, FAILED }
-
-private object WindowsRuntime {
-    // Safe placeholder until Wine + Box64 are integrated. Returning NOT_INSTALLED
-    // guarantees that the library cleanup path cannot run prematurely.
-    suspend fun launch(context: Context, game: GameEntry): RuntimeLaunchResult {
-        return RuntimeLaunchResult.NOT_INSTALLED
-    }
 }
 
 private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
