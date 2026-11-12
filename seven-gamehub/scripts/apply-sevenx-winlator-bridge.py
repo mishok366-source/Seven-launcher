@@ -69,12 +69,12 @@ replace_once(
 replace_once(
     menu,
     '<item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />',
-    '<item android:icon="@drawable/icon_run" android:id="@+id/menu_item_desktop" android:title="Рабочий стол" />\\n        <item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />'
+    '<item android:icon="@drawable/icon_run" android:id="@+id/menu_item_desktop" android:title="Рабочий стол" />\n        <item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />'
 )
 replace_once(
     main_activity,
-    '            case R.id.menu_item_containers:\\n',
-    '            case R.id.menu_item_desktop:\\n                Intent desktopIntent = new Intent("com.seven.gamehub.action.OPEN_DESKTOP");\\n                desktopIntent.setClass(this, SevenXBridgeActivity.class);\\n                startActivity(desktopIntent);\\n                break;\\n            case R.id.menu_item_containers:\\n'
+    '            case R.id.menu_item_containers:\n',
+    '            case R.id.menu_item_desktop:\n                Intent desktopIntent = new Intent("com.seven.gamehub.action.OPEN_DESKTOP");\n                desktopIntent.setClass(this, SevenXBridgeActivity.class);\n                startActivity(desktopIntent);\n                break;\n            case R.id.menu_item_containers:\n'
 )
 
 replace_once(
