@@ -546,10 +546,19 @@ private fun GameCard(game: GameEntry, onRun: () -> Unit, onPinShortcut: () -> Un
 
 @Composable
 private fun SettingsScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val runtimeStatus = WindowsRuntime.status(context)
+    val runtimeLabel = when (runtimeStatus.availability) {
+        com.seven.gamehub.runtime.RuntimeAvailability.READY -> "ГОТОВО"
+        com.seven.gamehub.runtime.RuntimeAvailability.NOT_INSTALLED -> "НЕ ПОДКЛЮЧЕНО"
+        com.seven.gamehub.runtime.RuntimeAvailability.UNSUPPORTED_DEVICE -> "НЕ ПОДДЕРЖИВАЕТСЯ"
+        com.seven.gamehub.runtime.RuntimeAvailability.INITIALIZING -> "ЗАПУСК"
+        com.seven.gamehub.runtime.RuntimeAvailability.ERROR -> "ОШИБКА"
+    }
     Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Настройки", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Среда запуска и параметры игр", color = Muted, fontSize = 14.sp)
-        SettingsCard("Среда Windows", "Wine / Proton — будет подключено следующим этапом", Icons.Rounded.Gamepad, "НЕ ПОДКЛЮЧЕНО")
+        SettingsCard(runtimeStatus.engineName, runtimeStatus.message, Icons.Rounded.Gamepad, runtimeLabel)
         SettingsCard("Графика", "Vulkan, DXVK, Turnip и OpenGL", Icons.Rounded.Tune, "СКОРО")
         SettingsCard("Контейнеры", "Отдельные префиксы и настройки для игр", Icons.Rounded.Settings, "СКОРО")
         Spacer(Modifier.height(4.dp))
