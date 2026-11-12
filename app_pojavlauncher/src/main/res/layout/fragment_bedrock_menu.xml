@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_app"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SEVEN / BEDROCK"
+            android:textColor="@color/primary_text"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+        <TextView
+            android:id="@+id/bedrock_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:text="Checking Minecraft Bedrock..."
+            android:textColor="@color/secondary_text"
+            android:textSize="15sp" />
+        <Button
+            android:id="@+id/bedrock_launch_button"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/seven_mode_card"
+            android:text="OPEN MINECRAFT"
+            android:textAllCaps="false"
+            android:textColor="@color/primary_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="BEDROCK VERSION MANAGER"
+            android:textColor="@color/primary_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/bedrock_version_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Choose an APK file already saved on your device. Android will handle installation."
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_import_apk_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:text="SELECT BEDROCK APK"
+            android:textAllCaps="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="MCPEHUB CONTENT CATALOG"
+            android:textColor="@color/primary_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Browse add-ons, textures and maps. When MCPEHub offers a direct .mcpack or .mcworld download, Seven sends it to the built-in downloader."
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_catalog_mods_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:text="BROWSE ADD-ONS"
+            android:textAllCaps="false" />
+        <Button
+            android:id="@+id/bedrock_catalog_textures_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="6dp"
+            android:text="BROWSE TEXTURES"
+            android:textAllCaps="false" />
+        <Button
+            android:id="@+id/bedrock_catalog_maps_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="6dp"
+            android:text="BROWSE MAPS"
+            android:textAllCaps="false" />
+        <WebView
+            android:id="@+id/bedrock_catalog_webview"
+            android:layout_width="match_parent"
+            android:layout_height="460dp"
+            android:layout_marginTop="10dp"
+            android:background="@color/background_app" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="SEVEN DOWNLOAD MANAGER"
+            android:textColor="@color/primary_text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+        <EditText
+            android:id="@+id/bedrock_download_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Direct HTTPS link to .mcpack / .mcworld"
+            android:inputType="textUri"
+            android:maxLines="2"
+            android:padding="12dp"
+            android:textColor="@color/primary_text"
+            android:textColorHint="@color/secondary_text" />
+        <Button
+            android:id="@+id/bedrock_download_button"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="10dp"
+            android:text="DOWNLOAD"
+            android:textAllCaps="false" />
+        <ProgressBar
+            android:id="@+id/bedrock_download_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_marginTop="14dp"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/bedrock_download_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Ready"
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_cancel_download_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="6dp"
+            android:enabled="false"
+            android:text="CANCEL DOWNLOAD"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/bedrock_import_addon_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="20dp"
+            android:text="IMPORT ADD-ON (.MCPACK)"
+            android:textAllCaps="false" />
+        <Button
+            android:id="@+id/bedrock_import_world_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="10dp"
+            android:text="IMPORT WORLD (.MCWORLD)"
+            android:textAllCaps="false" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:gravity="center"
+            android:text="Android manages background transfer and retries. After completion, Seven attempts to open the file in Minecraft."
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_back_button"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="24dp"
+            android:text="BACK TO EDITIONS"
+            android:textAllCaps="false" />
+    </LinearLayout>
+</ScrollView>

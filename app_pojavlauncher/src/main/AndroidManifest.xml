@@ -138,5 +138,6 @@
     </application>
     <queries>
         <package android:name="net.kdt.pojavlaunch.ffmpeg"/>
+        <package android:name="com.mojang.minecraftpe"/>
     </queries>
 </manifest>

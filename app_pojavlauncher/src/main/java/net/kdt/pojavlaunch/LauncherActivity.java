@@ -37,6 +37,7 @@ import net.kdt.pojavlaunch.extra.ExtraConstants;
 import net.kdt.pojavlaunch.extra.ExtraCore;
 import net.kdt.pojavlaunch.extra.ExtraListener;
 import net.kdt.pojavlaunch.fragments.MainMenuFragment;
+import net.kdt.pojavlaunch.fragments.EditionSelectFragment;
 import net.kdt.pojavlaunch.fragments.MicrosoftLoginFragment;
 import net.kdt.pojavlaunch.fragments.SelectAuthFragment;
 import net.kdt.pojavlaunch.lifecycle.ContextAwareDoneListener;
@@ -138,6 +139,9 @@ public class LauncherActivity extends BaseActivity {
     private final FragmentManager.FragmentLifecycleCallbacks mFragmentCallbackListener = new FragmentManager.FragmentLifecycleCallbacks() {
         @Override
         public void onFragmentResumed(@NonNull FragmentManager fm, @NonNull Fragment f) {
+            boolean bedrockOrEditionScreen = f instanceof EditionSelectFragment
+                    || f instanceof net.kdt.pojavlaunch.fragments.BedrockMenuFragment;
+            mAccountSpinner.setVisibility(bedrockOrEditionScreen ? View.GONE : View.VISIBLE);
             mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), f instanceof MainMenuFragment
                     ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
         }
@@ -299,7 +303,7 @@ public class LauncherActivity extends BaseActivity {
             fragmentManager.beginTransaction()
                     .setReorderingAllowed(true)
                     .addToBackStack("ROOT")
-                    .add(R.id.container_fragment, MainMenuFragment.class, null, "ROOT").commit();
+                    .add(R.id.container_fragment, EditionSelectFragment.class, null, "ROOT").commit();
         }
 
 
