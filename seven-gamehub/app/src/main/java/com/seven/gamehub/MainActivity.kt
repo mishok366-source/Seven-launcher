@@ -1,6 +1,11 @@
 package com.seven.gamehub
 
 import android.net.Uri
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -74,7 +79,27 @@ private val Muted = Color(0xFF8D98AC)
 private val Accent = Color(0xFF9B7BFF)
 private val AccentBlue = Color(0xFF54C7F5)
 
-private data class GameEntry(val name: String, val uri: Uri)
+private data class GameEntry(val name: String, val uri: Uri, val isInstaller: Boolean = false)
+
+private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return false
+    val manager = context.getSystemService(ShortcutManager::class.java) ?: return false
+    if (!manager.isRequestPinShortcutSupported) return false
+    val launchIntent = Intent(context, MainActivity::class.java).apply {
+        action = Intent.ACTION_VIEW
+        putExtra("sevenx_game_uri", game.uri.toString())
+        putExtra("sevenx_game_name", game.name)
+        putExtra("sevenx_game_is_installer", game.isInstaller)
+        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    }
+    val shortcut = ShortcutInfo.Builder(context, "sevenx_" + game.uri.toString().hashCode())
+        .setShortLabel(game.name.take(10))
+        .setLongLabel("Запустить " + game.name)
+        .setIcon(Icon.createWithResource(context, android.R.mipmap.sym_def_app_icon))
+        .setIntent(launchIntent)
+        .build()
+    return manager.requestPinShortcut(shortcut, null)
+}
 
 private const val PREFS_NAME = "seven_gamehub_library"
 private const val PREFS_GAMES = "games"
@@ -91,7 +116,7 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                 val item = array.getJSONObject(index)
                 val uriString = item.getString("uri")
                 if (uriString in permissions) {
-                    add(GameEntry(item.getString("name"), Uri.parse(uriString)))
+                    add(GameEntry(item.getString("name"), Uri.parse(uriString), item.optBoolean("isInstaller", false)))
                 }
             }
         }
@@ -101,7 +126,7 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
 private fun saveGames(context: android.content.Context, games: List<GameEntry>) {
     val array = org.json.JSONArray()
     games.forEach { game ->
-        array.put(org.json.JSONObject().put("name", game.name).put("uri", game.uri.toString()))
+        array.put(org.json.JSONObject().put("name", game.name).put("uri", game.uri.toString()).put("isInstaller", game.isInstaller))
     }
     context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit().putString(PREFS_GAMES, array.toString()).apply()
@@ -121,6 +146,7 @@ private fun SevenGameHubApp() {
     val snackbar = remember { SnackbarHostState() }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var games by remember(context) { mutableStateOf(loadSavedGames(context)) }
+    var pickerIsInstaller by remember { mutableStateOf(false) }
 
     LaunchedEffect(games) {
         saveGames(context, games)
@@ -141,7 +167,7 @@ private fun SevenGameHubApp() {
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: uri.lastPathSegment ?: "Windows game.exe"
 
-            if (games.none { it.uri == uri }) games = games + GameEntry(name, uri)
+            if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller)
             scope.launch { snackbar.showSnackbar("$name добавлена в библиотеку") }
         }
     }
@@ -173,7 +199,12 @@ private fun SevenGameHubApp() {
             if (selectedTab == 0) {
                 LibraryScreen(
                     games = games,
-                    onAdd = { exePicker.launch(arrayOf("*/*")) },
+                    onAdd = { pickerIsInstaller = false; exePicker.launch(arrayOf("*/*")) },
+                    onAddSetup = { pickerIsInstaller = true; exePicker.launch(arrayOf("*/*")) },
+                    onPinShortcut = { game ->
+                        val pinned = pinGameShortcut(context, game)
+                        scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
+                    },
                     onRun = {
                         scope.launch { snackbar.showSnackbar("Wine/Proton ещё не подключён — это следующий этап") }
                     },
@@ -190,6 +221,8 @@ private fun SevenGameHubApp() {
 private fun LibraryScreen(
     games: List<GameEntry>,
     onAdd: () -> Unit,
+    onAddSetup: () -> Unit,
+    onPinShortcut: (GameEntry) -> Unit,
     onRun: (GameEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -211,8 +244,8 @@ private fun LibraryScreen(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("SEVEN", fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Text("GAMEHUB", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                    Text("SEVENX", fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("SEVENX", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                 }
                 Surface(color = Color(0xFF242039), shape = CircleShape) {
                     Text("PREVIEW", color = Color(0xFFC5B7FF), fontSize = 10.sp, fontWeight = FontWeight.Bold,
@@ -254,7 +287,7 @@ private fun LibraryScreen(
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить EXE-файл", fontWeight = FontWeight.Bold)
+                    Text("Добавить EXE", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -293,6 +326,7 @@ private fun LibraryScreen(
                 GameCard(
                     game = game,
                     onRun = { onRun(game) },
+                    onPinShortcut = { onPinShortcut(game) },
                     onRemove = { games = games.filterNot { it.uri == game.uri } }
                 )
             }
@@ -308,7 +342,7 @@ private fun LibraryScreen(
 }
 
 @Composable
-private fun GameCard(game: GameEntry, onRun: () -> Unit, onRemove: () -> Unit) {
+private fun GameCard(game: GameEntry, onRun: () -> Unit, onPinShortcut: () -> Unit, onRemove: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
             .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp),
@@ -321,10 +355,13 @@ private fun GameCard(game: GameEntry, onRun: () -> Unit, onRemove: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Text("Windows • EXE", color = Muted, fontSize = 12.sp)
+            Text(if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
         }
         OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
             androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
+        }
+        IconButton(onClick = onPinShortcut) {
+            androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
         }
         IconButton(onClick = onRemove) {
             androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
