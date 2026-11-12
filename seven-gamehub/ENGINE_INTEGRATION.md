@@ -1,56 +1,44 @@
-# SevenX Windows Engine Integration Notes
+# SevenX Windows Runtime Integration
 
-Status: architecture preparation only. No Wine, Box64, Mesa, DXVK or Windows process launcher is bundled by this change.
+Status: runtime source pinned and a separate reference APK build is being added to CI. The runtime is **not yet callable directly from SevenX**.
 
-## Current boundary
+## Pinned runtime source
 
-The app module talks to `com.seven.gamehub.runtime.WindowsRuntimeEngine` through a small API:
+SevenX tracks the Android application source from:
 
-- `status(context)` reports whether a compatible runtime is actually available.
-- `launch(context, executable)` returns `STARTED` only after the backend has positively confirmed that the Windows process was created.
-- `NOT_INSTALLED` and `FAILED` must never trigger installer cleanup.
-- The library owns the entry metadata. The runtime must not delete user EXE files.
-- Installer cleanup remains a library-only operation after a confirmed start.
+- Repository: https://github.com/brunodev85/winlator-app
+- Pinned upstream commit: `a030f552f452158a2db64fdb32b490fa19c0b48d`
+- License declared by upstream: LGPL-2.1
+- Submodule path: `seven-gamehub/winlator-source`
 
-The current `WindowsRuntime` implementation is deliberately unavailable. This is not an EXE execution engine.
+The pinned source contains the Android app, its native CMake sources, and runtime assets. The CI pipeline builds it as a separate reference APK so native build and packaging failures become visible independently from SevenX's own APK.
 
-## Technical reference reviewed
+## Important integration boundary
 
-The Winlator project is a relevant Android reference implementation:
+This is a separate Android application, not a library that SevenX can simply call in-process.
 
-- Main project: https://github.com/brunodev85/winlator
-- Android application source: https://github.com/brunodev85/winlator-app
-- The main repository declares separate `app`, `vortek` and `gladio` Git submodules.
-- Its README describes an Android stack based on Wine and Box86/Box64.
-- The application source uses Android NDK/CMake native builds, targets ARM64 in its debug configuration, and includes runtime setup/assets and container management.
+The inspected upstream manifest declares `com.winlator.MainActivity` exported, but `com.winlator.XServerDisplayActivity` is not exported. The upstream MainActivity currently handles its own navigation/container extras and does not expose a documented public action for launching an arbitrary EXE supplied by another app. Therefore, simply sending an Intent or a file URI from SevenX does not launch the selected EXE.
 
-This confirms that a working implementation is substantially more than adding a dependency or launching another app with an Intent. SevenX needs a supported way to provision runtime assets, create/manage prefixes, invoke the process, display output, route input/audio/graphics, and collect exit/error information.
+The CI reference APK is an integration/build milestone only. It must not be described as an embedded SevenX runtime or as proof that SevenX can execute EXE files.
 
-## Licensing and redistribution gate
+## Required bridge work
 
-The Winlator application repository declares LGPL-2.1. The main repository and its submodules, bundled runtime assets, native dependencies and third-party components must each be reviewed independently before copying, linking, packaging or redistributing anything.
+1. Maintain a SevenX-specific, pinned patch/fork of the runtime rather than modifying upstream at build time without review.
+2. Add a narrow, explicit Android bridge that accepts a content URI with a temporary read grant and validates/copies the selected EXE into a runtime-owned location.
+3. Select or create a container/prefix and generate a runtime shortcut for the requested executable.
+4. Start the runtime display/process lifecycle through runtime-owned code; do not attempt to launch the non-exported display Activity from SevenX.
+5. Return an explicit callback/result only after the Windows process has actually been created. An Activity opening or a request being accepted is not a successful launch.
+6. Keep source EXEs untouched. Remove a SETUP entry from the SevenX library only after a confirmed process-start callback; never delete the underlying file.
+7. Test first with a small, user-provided Windows desktop executable on physical ARM64 Android hardware.
 
-Before importing upstream code or binaries:
+## Existing SevenX contract
 
-1. Pin exact upstream commits and submodule revisions.
-2. Inventory every source tree, native library, runtime asset and bundled executable.
-3. Record each component's license, notices, source-offer/source-publication duties and redistribution conditions.
-4. Check compatibility between the licenses of all bundled components.
-5. Keep required notices and corresponding source available with any distributed build.
-6. Prefer a clean adapter boundary and separately maintained components over copying the upstream UI/application wholesale.
+`WindowsRuntimeEngine` remains the only boundary between the library UI and the runtime. Its `STARTED` result is reserved for confirmed process creation. Until the bridge and callback exist, SevenX must continue to report the runtime as unavailable and must not auto-remove installer entries.
 
-This note is an engineering checklist, not legal advice. No upstream Winlator source or binary is copied into SevenX by this change.
+## Licensing and redistribution
 
-## Planned implementation order
+The upstream application repository declares LGPL-2.1. The pinned source includes runtime assets and native components whose individual licenses and notices must be reviewed before distributing a combined or modified package. Preserve upstream notices and satisfy applicable source and relinking obligations. This engineering note is not legal advice.
 
-1. **Runtime discovery:** detect supported ABI and required native capabilities; report unsupported devices clearly.
-2. **Asset provisioning:** download/install only verified, redistributable runtime packages with checksums, version pinning, cancellation and storage checks.
-3. **Prefix/container lifecycle:** create, persist, repair and remove isolated Windows prefixes without touching imported source EXEs.
-4. **First process launch:** launch a small, user-supplied Windows test application and confirm process creation/exit.
-5. **Display and input:** provide a usable app surface, touch/mouse/keyboard mapping, orientation and resolution controls.
-6. **Graphics/audio:** add compatible graphics and audio backends after basic process execution is stable.
-7. **Installer lifecycle:** remove only the SETUP library entry after confirmed process start; retain the original EXE on device.
+## Device validation
 
-## Device-first validation
-
-The first target is Android ARM64. Each milestone must be built in CI and tested on a physical device. A successful Gradle build alone does not prove Windows compatibility. Unsupported ABIs, missing assets, failed prefix creation and process launch errors must remain visible and must never be reported as successful execution.
+A successful CI build proves only that the source compiles for the configured Android toolchain. It does not prove compatibility with a particular phone, GPU driver, Wine prefix, or Windows application. Physical-device tests remain required.
