@@ -6,7 +6,7 @@
     android:fillViewport="true">
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="24dp">
@@ -62,6 +62,60 @@
             android:layout_marginTop="14dp"
             android:text="SELECT BEDROCK APK"
             android:textAllCaps="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="SEVEN DOWNLOAD MANAGER"
+            android:textColor="@color/primary_text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+        <EditText
+            android:id="@+id/bedrock_download_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Direct HTTPS link to .mcpack / .mcworld"
+            android:inputType="textUri"
+            android:maxLines="2"
+            android:padding="12dp"
+            android:textColor="@color/primary_text"
+            android:textColorHint="@color/secondary_text" />
+        <Button
+            android:id="@+id/bedrock_download_button"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="10dp"
+            android:text="DOWNLOAD"
+            android:textAllCaps="false" />
+        <ProgressBar
+            android:id="@+id/bedrock_download_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_marginTop="14dp"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone" />
+        <TextView
+            android:id="@+id/bedrock_download_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Ready"
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_cancel_download_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="6dp"
+            android:enabled="false"
+            android:text="CANCEL DOWNLOAD"
+            android:textAllCaps="false" />
+
         <Button
             android:id="@+id/bedrock_import_addon_button"
             android:layout_width="match_parent"
@@ -81,7 +135,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:gravity="center"
-            android:text="APK installation is confirmed by Android. Add-ons and worlds are sent to the installed Minecraft app."
+            android:text="Android manages background transfer and retries. After completion, Seven attempts to open the file in Minecraft."
             android:textColor="@color/secondary_text"
             android:textSize="13sp" />
         <Button
