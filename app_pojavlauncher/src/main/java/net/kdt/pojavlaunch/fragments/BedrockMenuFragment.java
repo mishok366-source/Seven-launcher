@@ -15,6 +15,11 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.webkit.URLUtil;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -35,14 +40,17 @@ public class BedrockMenuFragment extends Fragment {
     private static final String BEDROCK_PACKAGE = "com.mojang.minecraftpe";
     private static final String PREFS = "seven_bedrock_downloads";
     private static final String PREF_DOWNLOAD_ID = "active_download_id";
+    private static final String PREF_DOWNLOAD_NAME = "active_download_name";
 
     private EditText downloadUrl;
     private ProgressBar downloadProgress;
     private TextView downloadStatus;
     private Button downloadButton;
     private Button cancelDownloadButton;
+    private WebView catalogWebView;
     private DownloadManager downloadManager;
     private long activeDownloadId = -1L;
+    private String activeDownloadFileName;
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
     private boolean receiverRegistered;
 
@@ -61,9 +69,7 @@ public class BedrockMenuFragment extends Fragment {
         public void onReceive(Context context, Intent intent) {
             if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
                 long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
-                if (completedId == activeDownloadId) {
-                    handleDownloadComplete(completedId);
-                }
+                if (completedId == activeDownloadId) handleDownloadComplete(completedId);
             }
         }
     };
@@ -93,11 +99,16 @@ public class BedrockMenuFragment extends Fragment {
         Button importAddon = view.findViewById(R.id.bedrock_import_addon_button);
         Button importWorld = view.findViewById(R.id.bedrock_import_world_button);
         Button back = view.findViewById(R.id.bedrock_back_button);
+        Button browseMods = view.findViewById(R.id.bedrock_catalog_mods_button);
+        Button browseTextures = view.findViewById(R.id.bedrock_catalog_textures_button);
+        Button browseMaps = view.findViewById(R.id.bedrock_catalog_maps_button);
+
         downloadUrl = view.findViewById(R.id.bedrock_download_url);
         downloadProgress = view.findViewById(R.id.bedrock_download_progress);
         downloadStatus = view.findViewById(R.id.bedrock_download_status);
         downloadButton = view.findViewById(R.id.bedrock_download_button);
         cancelDownloadButton = view.findViewById(R.id.bedrock_cancel_download_button);
+        catalogWebView = view.findViewById(R.id.bedrock_catalog_webview);
 
         updateInstalledStatus(status, launch);
         boolean installed = isBedrockInstalled();
@@ -107,16 +118,14 @@ public class BedrockMenuFragment extends Fragment {
         launch.setOnClickListener(v -> {
             if (!isBedrockInstalled()) {
                 updateInstalledStatus(status, launch);
-                Toast.makeText(requireContext(),
-                        "Minecraft Bedrock is not installed.",
+                Toast.makeText(requireContext(), "Minecraft Bedrock is not installed.",
                         Toast.LENGTH_LONG).show();
                 return;
             }
             Intent gameIntent = requireContext().getPackageManager()
                     .getLaunchIntentForPackage(BEDROCK_PACKAGE);
             if (gameIntent == null) {
-                Toast.makeText(requireContext(),
-                        "Could not open Minecraft Bedrock.",
+                Toast.makeText(requireContext(), "Could not open Minecraft Bedrock.",
                         Toast.LENGTH_LONG).show();
                 return;
             }
@@ -125,16 +134,55 @@ public class BedrockMenuFragment extends Fragment {
 
         importApk.setOnClickListener(v ->
                 apkPicker.launch(new String[]{"application/vnd.android.package-archive"}));
-        importAddon.setOnClickListener(v ->
-                addonPicker.launch(new String[]{"*/*"}));
-        importWorld.setOnClickListener(v ->
-                worldPicker.launch(new String[]{"*/*"}));
-        downloadButton.setOnClickListener(v -> startAddonDownload());
+        importAddon.setOnClickListener(v -> addonPicker.launch(new String[]{"*/*"}));
+        importWorld.setOnClickListener(v -> worldPicker.launch(new String[]{"*/*"}));
+        downloadButton.setOnClickListener(v -> startManualDownload());
         cancelDownloadButton.setOnClickListener(v -> cancelAddonDownload());
-        back.setOnClickListener(v ->
-                Tools.backToMainMenu(requireActivity()));
+        back.setOnClickListener(v -> Tools.backToMainMenu(requireActivity()));
+
+        configureCatalogWebView();
+        browseMods.setOnClickListener(v ->
+                catalogWebView.loadUrl("https://mcpehub.org/mods/"));
+        browseTextures.setOnClickListener(v ->
+                catalogWebView.loadUrl("https://mcpehub.org/textures/"));
+        browseMaps.setOnClickListener(v ->
+                catalogWebView.loadUrl("https://mcpehub.org/maps/"));
 
         restoreActiveDownload();
+    }
+
+    private void configureCatalogWebView() {
+        WebSettings settings = catalogWebView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setSupportMultipleWindows(false);
+
+        catalogWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                String host = uri.getHost();
+                return host == null || !(host.equalsIgnoreCase("mcpehub.org")
+                        || host.toLowerCase(java.util.Locale.ROOT).endsWith(".mcpehub.org"));
+            }
+        });
+
+        catalogWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, size) -> {
+            Uri uri = Uri.parse(url);
+            String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
+            String lowerName = fileName.toLowerCase(java.util.Locale.ROOT);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                    || !(lowerName.endsWith(".mcpack") || lowerName.endsWith(".mcworld"))) {
+                downloadStatus.setText("This page did not provide a supported .mcpack or .mcworld file.");
+                Toast.makeText(requireContext(),
+                        "Seven downloads only Bedrock add-ons and worlds, not game APKs.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            enqueueContentDownload(uri, fileName);
+        });
     }
 
     @Override
@@ -166,30 +214,36 @@ public class BedrockMenuFragment extends Fragment {
         super.onStop();
     }
 
+    @Override
+    public void onDestroyView() {
+        progressHandler.removeCallbacks(progressRunnable);
+        if (catalogWebView != null) {
+            catalogWebView.stopLoading();
+            catalogWebView.setDownloadListener(null);
+            catalogWebView.destroy();
+            catalogWebView = null;
+        }
+        super.onDestroyView();
+    }
+
     private void restoreActiveDownload() {
-        activeDownloadId = requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getLong(PREF_DOWNLOAD_ID, -1L);
+        android.content.SharedPreferences prefs =
+                requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        activeDownloadId = prefs.getLong(PREF_DOWNLOAD_ID, -1L);
+        activeDownloadFileName = prefs.getString(PREF_DOWNLOAD_NAME, null);
         if (activeDownloadId != -1L) {
             refreshDownloadProgress();
             if (receiverRegistered) progressHandler.post(progressRunnable);
         }
     }
 
-    private void startAddonDownload() {
+    private void startManualDownload() {
         String rawUrl = downloadUrl.getText().toString().trim();
         if (rawUrl.isEmpty()) {
             downloadUrl.setError("Enter a direct HTTPS download link");
             return;
         }
-
-        Uri uri;
-        try {
-            uri = Uri.parse(rawUrl);
-        } catch (Exception error) {
-            downloadUrl.setError("Invalid link");
-            return;
-        }
-
+        Uri uri = Uri.parse(rawUrl);
         String scheme = uri.getScheme();
         String path = uri.getPath();
         String fileName = uri.getLastPathSegment();
@@ -197,13 +251,19 @@ public class BedrockMenuFragment extends Fragment {
             downloadUrl.setError("Only direct HTTPS file links are supported");
             return;
         }
+        enqueueContentDownload(uri, fileName);
+    }
 
+    private void enqueueContentDownload(@NonNull Uri uri, @NonNull String fileName) {
         String lowerName = fileName.toLowerCase(java.util.Locale.ROOT);
         if (!lowerName.endsWith(".mcpack") && !lowerName.endsWith(".mcworld")) {
-            downloadUrl.setError("Only .mcpack and .mcworld files can be downloaded here");
+            downloadStatus.setText("Only .mcpack and .mcworld files are supported.");
             return;
         }
-
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            downloadStatus.setText("Only secure HTTPS downloads are supported.");
+            return;
+        }
         if (activeDownloadId != -1L) {
             Toast.makeText(requireContext(),
                     "A download is already active. Cancel it before starting another.",
@@ -218,16 +278,18 @@ public class BedrockMenuFragment extends Fragment {
             request.setMimeType("application/octet-stream");
             request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            if (Build.VERSION.SDK_INT >= 24) {
-                request.setAllowedOverMetered(true);
-            }
+            if (Build.VERSION.SDK_INT >= 24) request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(false);
             request.setDestinationInExternalFilesDir(requireContext(),
                     Environment.DIRECTORY_DOWNLOADS, "Seven/" + fileName);
 
+            activeDownloadFileName = fileName;
             activeDownloadId = downloadManager.enqueue(request);
-            requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                    .edit().putLong(PREF_DOWNLOAD_ID, activeDownloadId).apply();
+            requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putLong(PREF_DOWNLOAD_ID, activeDownloadId)
+                    .putString(PREF_DOWNLOAD_NAME, fileName)
+                    .apply();
+
             downloadStatus.setText("Starting download…");
             downloadProgress.setProgress(0);
             downloadProgress.setVisibility(View.VISIBLE);
@@ -237,6 +299,7 @@ public class BedrockMenuFragment extends Fragment {
             progressHandler.post(progressRunnable);
         } catch (Exception error) {
             activeDownloadId = -1L;
+            activeDownloadFileName = null;
             downloadStatus.setText("Could not start download.");
             Toast.makeText(requireContext(),
                     "Download could not be started: " + error.getMessage(),
@@ -246,7 +309,6 @@ public class BedrockMenuFragment extends Fragment {
 
     private void refreshDownloadProgress() {
         if (downloadManager == null || activeDownloadId == -1L || !isAdded()) return;
-
         downloadProgress.setVisibility(View.VISIBLE);
         Cursor cursor = null;
         try {
@@ -292,17 +354,18 @@ public class BedrockMenuFragment extends Fragment {
     private void handleDownloadComplete(long downloadId) {
         if (downloadId != activeDownloadId || !isAdded()) return;
         Uri downloadedUri = downloadManager.getUriForDownloadedFile(downloadId);
+        String fileName = activeDownloadFileName;
+        if (fileName == null) {
+            fileName = requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .getString(PREF_DOWNLOAD_NAME, "");
+        }
         if (downloadedUri == null) {
             finishDownloadUi("Download finished, but Android did not provide the file.", false);
             return;
         }
 
-        String fileName = downloadUrl.getText().toString().trim();
-        String path = Uri.parse(fileName).getPath();
-        String lower = path == null ? "" : path.toLowerCase(java.util.Locale.ROOT);
-        String mime = lower.endsWith(".mcworld")
-                ? "application/octet-stream" : "application/octet-stream";
-
+        boolean isWorld = fileName != null
+                && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".mcworld");
         finishDownloadUi("Download complete. Opening Minecraft…", true);
         if (!isBedrockInstalled()) {
             downloadStatus.setText("Downloaded. Install Minecraft, then import the file from Downloads/Seven.");
@@ -310,13 +373,13 @@ public class BedrockMenuFragment extends Fragment {
         }
 
         Intent importIntent = new Intent(Intent.ACTION_VIEW);
-        importIntent.setDataAndType(downloadedUri, mime);
+        importIntent.setDataAndType(downloadedUri, "application/octet-stream");
         importIntent.setPackage(BEDROCK_PACKAGE);
         importIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         try {
             startActivity(importIntent);
         } catch (ActivityNotFoundException error) {
-            downloadStatus.setText("Downloaded. Minecraft did not accept the file automatically; use IMPORT ADD-ON / IMPORT WORLD.");
+            downloadStatus.setText("Downloaded. Minecraft did not accept the file automatically; use the import buttons.");
         }
     }
 
@@ -329,8 +392,9 @@ public class BedrockMenuFragment extends Fragment {
     private void finishDownloadUi(String message, boolean completed) {
         progressHandler.removeCallbacks(progressRunnable);
         activeDownloadId = -1L;
+        activeDownloadFileName = null;
         requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().remove(PREF_DOWNLOAD_ID).apply();
+                .edit().remove(PREF_DOWNLOAD_ID).remove(PREF_DOWNLOAD_NAME).apply();
         downloadProgress.setIndeterminate(false);
         downloadProgress.setProgress(completed ? 100 : 0);
         downloadStatus.setText(message);
@@ -360,8 +424,7 @@ public class BedrockMenuFragment extends Fragment {
         try {
             startActivity(installIntent);
         } catch (ActivityNotFoundException error) {
-            Toast.makeText(requireContext(),
-                    "Android could not open this APK file.",
+            Toast.makeText(requireContext(), "Android could not open this APK file.",
                     Toast.LENGTH_LONG).show();
         }
     }
@@ -369,12 +432,10 @@ public class BedrockMenuFragment extends Fragment {
     private void importIntoMinecraft(@Nullable Uri uri) {
         if (uri == null) return;
         if (!isBedrockInstalled()) {
-            Toast.makeText(requireContext(),
-                    "Minecraft Bedrock is not installed.",
+            Toast.makeText(requireContext(), "Minecraft Bedrock is not installed.",
                     Toast.LENGTH_LONG).show();
             return;
         }
-
         Intent importIntent = new Intent(Intent.ACTION_VIEW);
         importIntent.setDataAndType(uri, "application/octet-stream");
         importIntent.setPackage(BEDROCK_PACKAGE);
