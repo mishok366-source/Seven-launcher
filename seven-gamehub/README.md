@@ -1,4 +1,4 @@
-# Seven GameHub
+# SevenX
 
 Standalone Android app foundation for a Windows-game launcher.
 
