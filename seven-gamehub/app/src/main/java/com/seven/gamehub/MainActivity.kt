@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Gamepad
 import androidx.compose.material.icons.rounded.Info
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -45,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +76,37 @@ private val AccentBlue = Color(0xFF54C7F5)
 
 private data class GameEntry(val name: String, val uri: Uri)
 
+private const val PREFS_NAME = "seven_gamehub_library"
+private const val PREFS_GAMES = "games"
+
+private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
+    return runCatching {
+        val saved = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .getString(PREFS_GAMES, "[]") ?: "[]"
+        val array = org.json.JSONArray(saved)
+        val permissions = context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }.map { it.uri.toString() }.toSet()
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                val uriString = item.getString("uri")
+                if (uriString in permissions) {
+                    add(GameEntry(item.getString("name"), Uri.parse(uriString)))
+                }
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
+private fun saveGames(context: android.content.Context, games: List<GameEntry>) {
+    val array = org.json.JSONArray()
+    games.forEach { game ->
+        array.put(org.json.JSONObject().put("name", game.name).put("uri", game.uri.toString()))
+    }
+    context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        .edit().putString(PREFS_GAMES, array.toString()).apply()
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,7 +120,11 @@ private fun SevenGameHubApp() {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var games by remember { mutableStateOf(emptyList<GameEntry>()) }
+    var games by remember(context) { mutableStateOf(loadSavedGames(context)) }
+
+    LaunchedEffect(games) {
+        saveGames(context, games)
+    }
 
     val exePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -252,7 +290,11 @@ private fun LibraryScreen(
             }
         } else {
             items(games, key = { it.uri.toString() }) { game ->
-                GameCard(game = game, onRun = { onRun(game) })
+                GameCard(
+                    game = game,
+                    onRun = { onRun(game) },
+                    onRemove = { games = games.filterNot { it.uri == game.uri } }
+                )
             }
         }
         item {
@@ -266,7 +308,7 @@ private fun LibraryScreen(
 }
 
 @Composable
-private fun GameCard(game: GameEntry, onRun: () -> Unit) {
+private fun GameCard(game: GameEntry, onRun: () -> Unit, onRemove: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
             .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp),
@@ -283,6 +325,9 @@ private fun GameCard(game: GameEntry, onRun: () -> Unit) {
         }
         OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
             androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
+        }
+        IconButton(onClick = onRemove) {
+            androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
         }
     }
 }
