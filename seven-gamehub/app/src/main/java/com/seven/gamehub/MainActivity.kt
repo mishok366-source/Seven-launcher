@@ -166,7 +166,7 @@ private fun LibraryScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier.size(46.dp).clip(RoundedCornerShape(15.dp))
-                        .background(Brush.linearGradient(listOf(Accent, Color(0xFF5742B8))),
+                        .background(Brush.linearGradient(listOf(Accent, Color(0xFF5742B8)))),
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.Gamepad, null, tint = Color.White, modifier = Modifier.size(27.dp))
