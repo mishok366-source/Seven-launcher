@@ -289,6 +289,16 @@ private fun LibraryScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Добавить EXE", fontWeight = FontWeight.Bold)
                 }
+                Spacer(Modifier.height(9.dp))
+                OutlinedButton(
+                    onClick = onAddSetup,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Добавить SETUP / установщик")
+                }
             }
         }
         item {
