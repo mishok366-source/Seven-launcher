@@ -133,14 +133,31 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
 }
 
 class MainActivity : ComponentActivity() {
+    private val shortcutGameUri = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SevenGameHubApp() }
+        shortcutGameUri.value = intent.getStringExtra("sevenx_game_uri")
+        setContent {
+            SevenGameHubApp(
+                shortcutGameUri = shortcutGameUri.value,
+                onShortcutHandled = { shortcutGameUri.value = null }
+            )
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        shortcutGameUri.value = intent.getStringExtra("sevenx_game_uri")
     }
 }
 
 @Composable
-private fun SevenGameHubApp() {
+private fun SevenGameHubApp(
+    shortcutGameUri: String?,
+    onShortcutHandled: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -150,6 +167,20 @@ private fun SevenGameHubApp() {
 
     LaunchedEffect(games) {
         saveGames(context, games)
+    }
+
+    LaunchedEffect(shortcutGameUri, games) {
+        val targetUri = shortcutGameUri
+        if (targetUri != null) {
+            val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
+            if (targetGame != null) {
+                selectedTab = 0
+                snackbar.showSnackbar("Открыт ярлык: ${targetGame.name}. Среда запуска EXE пока не подключена.")
+            } else {
+                snackbar.showSnackbar("Файл из ярлыка не найден в библиотеке.")
+            }
+            onShortcutHandled()
+        }
     }
 
     val exePicker = rememberLauncherForActivityResult(
@@ -205,6 +236,9 @@ private fun SevenGameHubApp() {
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
                     },
+                    onRemove = { game ->
+                        games = games.filterNot { it.uri == game.uri }
+                    },
                     onRun = {
                         scope.launch { snackbar.showSnackbar("Wine/Proton ещё не подключён — это следующий этап") }
                     },
@@ -223,6 +257,7 @@ private fun LibraryScreen(
     onAdd: () -> Unit,
     onAddSetup: () -> Unit,
     onPinShortcut: (GameEntry) -> Unit,
+    onRemove: (GameEntry) -> Unit,
     onRun: (GameEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -337,7 +372,7 @@ private fun LibraryScreen(
                     game = game,
                     onRun = { onRun(game) },
                     onPinShortcut = { onPinShortcut(game) },
-                    onRemove = { games = games.filterNot { it.uri == game.uri } }
+                    onRemove = { onRemove(game) }
                 )
             }
         }
