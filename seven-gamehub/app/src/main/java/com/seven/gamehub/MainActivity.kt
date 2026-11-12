@@ -510,7 +510,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.3.0 • Правило автоуборки установщиков", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.4.0 • Архитектура Windows Engine", color = Muted, fontSize = 11.sp)
             }
         }
     }
