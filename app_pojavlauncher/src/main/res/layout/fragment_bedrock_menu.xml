@@ -38,11 +38,35 @@
             android:textColor="@color/primary_text"
             android:textSize="18sp"
             android:textStyle="bold" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="BEDROCK VERSION MANAGER"
+            android:textColor="@color/primary_text"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/bedrock_version_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Choose an APK file already saved on your device. Android will handle installation."
+            android:textColor="@color/secondary_text"
+            android:textSize="13sp" />
+        <Button
+            android:id="@+id/bedrock_import_apk_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:text="SELECT BEDROCK APK"
+            android:textAllCaps="false" />
         <Button
             android:id="@+id/bedrock_import_addon_button"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="20dp"
             android:text="IMPORT ADD-ON (.MCPACK)"
             android:textAllCaps="false" />
         <Button
@@ -57,7 +81,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:gravity="center"
-            android:text="Import add-ons and worlds through the official Minecraft import flow. Graphics settings and game updates remain managed by Minecraft / the app store."
+            android:text="APK installation is confirmed by Android. Add-ons and worlds are sent to the installed Minecraft app."
             android:textColor="@color/secondary_text"
             android:textSize="13sp" />
         <Button
