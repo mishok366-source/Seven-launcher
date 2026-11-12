@@ -47,7 +47,7 @@ jobs:
           name: sevenx-debug
           path: seven-gamehub/app/build/outputs/apk/debug/app-debug.apk
 
-  build-winlator-reference-runtime:
+  build-winlator-runtime:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout pinned Winlator source
@@ -68,7 +68,9 @@ jobs:
             ndk;24.0.8215888
             cmake;3.22.1
           accept-android-sdk-licenses: true
-      - name: Build pinned Winlator reference APK
+      - name: Apply SevenX launch bridge
+        run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
+      - name: Build SevenX-enabled Winlator runtime APK
         working-directory: seven-gamehub/winlator-source
         run: |
           chmod +x gradlew
@@ -76,5 +78,5 @@ jobs:
       - name: Upload Winlator reference APK
         uses: actions/upload-artifact@v4
         with:
-          name: winlator-reference-debug
+          name: winlator-sevenx-runtime-debug
           path: seven-gamehub/winlator-source/app/build/outputs/apk/debug/app-debug.apk
