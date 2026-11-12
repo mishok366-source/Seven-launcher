@@ -2,6 +2,7 @@ package com.seven.gamehub.runtime
 
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -56,7 +57,10 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
 
     override fun status(context: Context): RuntimeStatus {
         val installed = runCatching {
-            context.packageManager.getPackageInfo(WINLATOR_PACKAGE, 0)
+            context.packageManager.getActivityInfo(
+                ComponentName(WINLATOR_PACKAGE, WINLATOR_BRIDGE),
+                0
+            )
         }.isSuccess
 
         return if (installed) {
