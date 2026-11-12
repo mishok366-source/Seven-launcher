@@ -79,6 +79,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.seven.gamehub.runtime.RuntimeLaunchResult
 import com.seven.gamehub.runtime.WindowsRuntime
+import com.seven.gamehub.runtime.RuntimeDiagnostics
 
 private val Background = Color(0xFF090B12)
 private val Panel = Color(0xFF141925)
@@ -442,7 +443,7 @@ private fun LibraryScreen(
                 Spacer(Modifier.height(17.dp))
                 Text("Твой ПК.\nТеперь в кармане.", color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
-                Text("Добавляй EXE-файлы. Поддержку Wine + Box64 подключим следующим этапом.",
+                Text("Библиотека EXE, ярлыки и проверка совместимости устройства. Windows runtime пока в разработке.",
                     color = Color(0xFFB5BED0), fontSize = 13.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(18.dp))
                 Button(
@@ -510,7 +511,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.4.0 • Архитектура Windows Engine", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.5.0 • Диагностика устройства", color = Muted, fontSize = 11.sp)
             }
         }
     }
@@ -548,6 +549,7 @@ private fun GameCard(game: GameEntry, onRun: () -> Unit, onPinShortcut: () -> Un
 private fun SettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val runtimeStatus = WindowsRuntime.status(context)
+    val diagnostics = RuntimeDiagnostics.inspect(context)
     val runtimeLabel = when (runtimeStatus.availability) {
         com.seven.gamehub.runtime.RuntimeAvailability.READY -> "ГОТОВО"
         com.seven.gamehub.runtime.RuntimeAvailability.NOT_INSTALLED -> "НЕ ПОДКЛЮЧЕНО"
@@ -562,7 +564,8 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsCard("Графика", "Vulkan, DXVK, Turnip и OpenGL", Icons.Rounded.Tune, "СКОРО")
         SettingsCard("Контейнеры", "Отдельные префиксы и настройки для игр", Icons.Rounded.Settings, "СКОРО")
         Spacer(Modifier.height(4.dp))
-        SettingsCard("Архитектура устройства", Build.SUPPORTED_ABIS.firstOrNull() ?: "Не определена", Icons.Rounded.Info, "ОБНАРУЖЕНО")
+        SettingsCard("Архитектура устройства", diagnostics.primaryAbi, Icons.Rounded.Info, if (diagnostics.supportsArm64) "ARM64" else "ABI")
+        SettingsCard("Совместимость", diagnostics.summary, Icons.Rounded.Tune, if (diagnostics.supportsArm64) "ПРОВЕРЕНО" else "ОГРАНИЧЕНО")
         Spacer(Modifier.height(4.dp))
         Text("EXE-файлы принимаются через файловый менеджер и проверяются перед импортом. Для реального запуска ещё требуется встроенная среда Wine и соответствующий транслятор x86/x64. Совместимость зависит от процессора и графического драйвера.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
