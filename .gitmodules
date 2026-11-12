@@ -13,3 +13,6 @@
 [submodule "androidnsbypass"]
 	path = androidnsbypass
 	url = https://github.com/alexytomi/androidnsbypass.git
+[submodule "seven-gamehub/winlator-source"]
+	path = seven-gamehub/winlator-source
+	url = https://github.com/brunodev85/winlator-app

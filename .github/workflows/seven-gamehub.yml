@@ -2,22 +2,26 @@ name: SevenX Android
 
 on:
   push:
-    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime" ]
+    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime", "sevenx-0.6.0-winlator-runtime" ]
     paths:
       - "seven-gamehub/**"
       - ".github/workflows/seven-gamehub.yml"
+      - ".gitmodules"
   pull_request:
     paths:
       - "seven-gamehub/**"
       - ".github/workflows/seven-gamehub.yml"
+      - ".gitmodules"
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-sevenx:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -26,17 +30,47 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
+          packages: "platforms;android-35 build-tools;35.0.0"
           accept-android-sdk-licenses: true
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Build debug APK
+      - name: Build SevenX debug APK
         working-directory: seven-gamehub
         run: gradle :app:assembleDebug
-      - name: Upload APK
+      - name: Upload SevenX APK
         uses: actions/upload-artifact@v4
         with:
-          name: seven-gamehub-debug
+          name: sevenx-debug
           path: seven-gamehub/app/build/outputs/apk/debug/app-debug.apk
+
+  build-winlator-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout pinned Winlator source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK and native toolchains
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;24.0.8215888 cmake;3.22.1"
+          accept-android-sdk-licenses: true
+      - name: Apply SevenX launch bridge
+        run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
+      - name: Build SevenX-enabled Winlator runtime APK
+        working-directory: seven-gamehub/winlator-source
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug
+      - name: Upload Winlator reference APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: winlator-sevenx-runtime-debug
+          path: seven-gamehub/winlator-source/app/build/outputs/apk/debug/app-debug.apk

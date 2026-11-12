@@ -1,56 +1,53 @@
-# SevenX Windows Engine Integration Notes
+# SevenX and SevenX Desktop integration
 
-Status: architecture preparation only. No Wine, Box64, Mesa, DXVK or Windows process launcher is bundled by this change.
+## Product boundary
 
-## Current boundary
+SevenX is the game manager. It owns the persistent game library, EXE/SETUP imports, shortcuts, launch history, favorites, and per-game launch profiles.
 
-The app module talks to `com.seven.gamehub.runtime.WindowsRuntimeEngine` through a small API:
+SevenX Desktop is the Windows environment, built from the pinned Winlator source. It owns the Wine/Box64 runtime, containers, desktop session, Windows application shortcuts, file manager, graphics/audio/input configuration, and low-level compatibility settings.
 
-- `status(context)` reports whether a compatible runtime is actually available.
-- `launch(context, executable)` returns `STARTED` only after the backend has positively confirmed that the Windows process was created.
-- `NOT_INSTALLED` and `FAILED` must never trigger installer cleanup.
-- The library owns the entry metadata. The runtime must not delete user EXE files.
-- Installer cleanup remains a library-only operation after a confirmed start.
+Do not duplicate Wine/Box64, DXVK/VKD3D, graphics-driver, audio-driver, or container-engine settings in SevenX. SevenX should expose game-specific overrides and library management only; SevenX Desktop remains the source of truth for runtime-wide settings.
 
-The current `WindowsRuntime` implementation is deliberately unavailable. This is not an EXE execution engine.
+## Desktop and application launch
 
-## Technical reference reviewed
+The maintained CI patch:
+1. Rebrands the Winlator companion application as **SevenX Desktop** and applies a separate dark-purple theme.
+2. Adds a **Рабочий стол** entry to the runtime navigation.
+3. Starts a Wine desktop session in the selected container without an application-specific `exec_path`.
+4. Renames the shortcut list entry to **Приложения**; the existing Windows shortcut and file-manager workflows remain available.
+5. Keeps the original container and engine settings screens in SevenX Desktop.
 
-The Winlator project is a relevant Android reference implementation:
+The desktop entry uses the same XServer/Wine environment as normal application launches. It is not a separate emulator or a fake desktop screenshot.
 
-- Main project: https://github.com/brunodev85/winlator
-- Android application source: https://github.com/brunodev85/winlator-app
-- The main repository declares separate `app`, `vortek` and `gladio` Git submodules.
-- Its README describes an Android stack based on Wine and Box86/Box64.
-- The application source uses Android NDK/CMake native builds, targets ARM64 in its debug configuration, and includes runtime setup/assets and container management.
+## SevenX-to-runtime launch flow
 
-This confirms that a working implementation is substantially more than adding a dependency or launching another app with an Intent. SevenX needs a supported way to provision runtime assets, create/manage prefixes, invoke the process, display output, route input/audio/graphics, and collect exit/error information.
+1. SevenX shares an imported EXE using a FileProvider content URI and a temporary read grant.
+2. SevenX supplies a one-shot PendingIntent callback.
+3. The runtime bridge validates the request and lets the user choose an existing container.
+4. The bridge copies the EXE into that container's `.wine/drive_c/SevenX` directory.
+5. The bridge starts Winlator's own `XServerDisplayActivity` with its existing `exec_path` flow.
+6. `GuestProgramLauncherComponent` reports whether its Wine/Box64 launcher process was created.
+7. SevenX removes an installer entry from its library only after a positive callback. The imported file is never deleted.
 
-## Licensing and redistribution gate
+## Important boundaries
 
-The Winlator application repository declares LGPL-2.1. The main repository and its submodules, bundled runtime assets, native dependencies and third-party components must each be reviewed independently before copying, linking, packaging or redistributing anything.
+- The callback confirms creation of Winlator's launcher process, not that the Windows application's main window appeared or that the installer completed successfully.
+- A Winlator container must exist before launching games. The runtime's desktop menu can be used to create and configure one.
+- The runtime is a separate APK, not merged into SevenX.
+- CI compilation is not physical-device validation. GPU drivers, CPU translation, RAM, Android version, and application-specific dependencies can still prevent a program from working.
+- Winlator source and bundled components retain their upstream licenses. Preserve required notices and corresponding source when distributing builds.
 
-Before importing upstream code or binaries:
+## Validation checklist
 
-1. Pin exact upstream commits and submodule revisions.
-2. Inventory every source tree, native library, runtime asset and bundled executable.
-3. Record each component's license, notices, source-offer/source-publication duties and redistribution conditions.
-4. Check compatibility between the licenses of all bundled components.
-5. Keep required notices and corresponding source available with any distributed build.
-6. Prefer a clean adapter boundary and separately maintained components over copying the upstream UI/application wholesale.
-
-This note is an engineering checklist, not legal advice. No upstream Winlator source or binary is copied into SevenX by this change.
-
-## Planned implementation order
-
-1. **Runtime discovery:** detect supported ABI and required native capabilities; report unsupported devices clearly.
-2. **Asset provisioning:** download/install only verified, redistributable runtime packages with checksums, version pinning, cancellation and storage checks.
-3. **Prefix/container lifecycle:** create, persist, repair and remove isolated Windows prefixes without touching imported source EXEs.
-4. **First process launch:** launch a small, user-supplied Windows test application and confirm process creation/exit.
-5. **Display and input:** provide a usable app surface, touch/mouse/keyboard mapping, orientation and resolution controls.
-6. **Graphics/audio:** add compatible graphics and audio backends after basic process execution is stable.
-7. **Installer lifecycle:** remove only the SETUP library entry after confirmed process start; retain the original EXE on device.
-
-## Device-first validation
-
-The first target is Android ARM64. Each milestone must be built in CI and tested on a physical device. A successful Gradle build alone does not prove Windows compatibility. Unsupported ABIs, missing assets, failed prefix creation and process launch errors must remain visible and must never be reported as successful execution.
+- [ ] SevenX manager APK builds.
+- [ ] SevenX Desktop runtime APK builds.
+- [ ] Both APKs install on an ARM64 Android device.
+- [ ] SevenX Desktop opens its redesigned UI.
+- [ ] Desktop menu starts a Wine desktop in a selected container.
+- [ ] Windows shortcut applications and file manager open.
+- [ ] SevenX can pass a content URI and read grant to the runtime.
+- [ ] Container selection and EXE copy work.
+- [ ] Wine/Box64 launcher callback is delivered.
+- [ ] SETUP library entry is removed only after a positive callback.
+- [ ] Original imported EXE remains on the device.
+- [ ] Test representative 32-bit and 64-bit applications and graphics backends.

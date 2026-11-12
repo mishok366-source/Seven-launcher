@@ -2,6 +2,7 @@ package com.seven.gamehub
 
 import android.net.Uri
 import android.content.Context
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -11,6 +12,7 @@ import android.os.Build
 import java.io.File
 import java.util.UUID
 import android.provider.OpenableColumns
+import androidx.core.content.FileProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -178,7 +180,7 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, Uri.fromFile(destination), isInstallerName(displayName))
+        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isInstallerName(displayName))
     }.getOrNull()
 }
 
@@ -197,7 +199,9 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                 val uriString = item.getString("uri")
                 val savedUri = Uri.parse(uriString)
                 val privateFileExists = savedUri.scheme == "file" && savedUri.path?.let { File(it).isFile } == true
-                if (privateFileExists || uriString in permissions) {
+                val providerFileExists = savedUri.authority == "${context.packageName}.files" &&
+                    runCatching { context.contentResolver.openFileDescriptor(savedUri, "r")?.use { true } ?: false }.getOrDefault(false)
+                if (privateFileExists || providerFileExists || uriString in permissions) {
                     add(GameEntry(item.getString("name"), savedUri, item.optBoolean("isInstaller", false)))
                 }
             }
@@ -215,6 +219,7 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
 }
 
 class MainActivity : ComponentActivity() {
+    private val libraryRefreshGeneration = mutableIntStateOf(0)
     private val shortcutGameUri = mutableStateOf<String?>(null)
     private val incomingExeUri = mutableStateOf<String?>(null)
 
@@ -222,6 +227,11 @@ class MainActivity : ComponentActivity() {
         shortcutGameUri.value = launchIntent?.getStringExtra("sevenx_game_uri")
         incomingExeUri.value = if (shortcutGameUri.value == null &&
             launchIntent?.action == Intent.ACTION_VIEW) launchIntent.data?.toString() else null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        libraryRefreshGeneration.intValue++
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -232,7 +242,8 @@ class MainActivity : ComponentActivity() {
                 shortcutGameUri = shortcutGameUri.value,
                 onShortcutHandled = { shortcutGameUri.value = null },
                 incomingExeUri = incomingExeUri.value,
-                onIncomingExeHandled = { incomingExeUri.value = null }
+                onIncomingExeHandled = { incomingExeUri.value = null },
+                libraryRefreshGeneration = libraryRefreshGeneration.intValue
             )
         }
     }
@@ -249,7 +260,8 @@ private fun SevenGameHubApp(
     shortcutGameUri: String?,
     onShortcutHandled: () -> Unit,
     incomingExeUri: String?,
-    onIncomingExeHandled: () -> Unit
+    onIncomingExeHandled: () -> Unit,
+    libraryRefreshGeneration: Int
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -262,13 +274,47 @@ private fun SevenGameHubApp(
         saveGames(context, games)
     }
 
+    LaunchedEffect(libraryRefreshGeneration) {
+        if (libraryRefreshGeneration > 0) {
+            val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val resultUri = preferences.getString("runtime_last_result_uri", null)
+            if (resultUri != null) {
+                val previous = games.firstOrNull { it.uri.toString() == resultUri }
+                val started = preferences.getBoolean("runtime_last_result_started", false)
+                games = loadSavedGames(context)
+                snackbar.showSnackbar(
+                    if (started) {
+                        if (previous?.isInstaller == true) "Установщик запущен и убран из библиотеки. Файл остался на устройстве."
+                        else "${previous?.name ?: "Приложение"} запущено в Winlator."
+                    } else {
+                        "Winlator не подтвердил запуск. Запись и файл сохранены."
+                    }
+                )
+                preferences.edit().remove("runtime_last_result_uri").remove("runtime_last_result_started").apply()
+            } else {
+                games = loadSavedGames(context)
+            }
+        }
+    }
+
     LaunchedEffect(shortcutGameUri, games) {
         val targetUri = shortcutGameUri
         if (targetUri != null) {
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                snackbar.showSnackbar("Открыт ярлык: ${targetGame.name}. Для запуска нужен Windows runtime.")
+                when (WindowsRuntime.launch(context, targetGame.uri)) {
+                    RuntimeLaunchResult.STARTED -> snackbar.showSnackbar("${targetGame.name} запущен")
+                    RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
+                        "${targetGame.name} передан в Winlator. Ждём подтверждения запуска."
+                    )
+                    RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar(
+                        "Winlator с поддержкой SevenX не установлен."
+                    )
+                    RuntimeLaunchResult.FAILED -> snackbar.showSnackbar(
+                        "Не удалось передать ${targetGame.name} в Winlator."
+                    )
+                }
             } else {
                 snackbar.showSnackbar("Файл из ярлыка не найден в библиотеке.")
             }
@@ -364,8 +410,11 @@ private fun SevenGameHubApp(
                                         snackbar.showSnackbar("${game.name} запущен")
                                     }
                                 }
+                                RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
+                                    "${game.name} передан в Winlator. Ждём подтверждения запуска."
+                                )
                                 RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar(
-                                    "Запуск пока недоступен: Wine + Box64 ещё не подключены. Установщик остался в библиотеке."
+                                    "Winlator с поддержкой SevenX не установлен. Установщик остался в библиотеке."
                                 )
                                 RuntimeLaunchResult.FAILED -> snackbar.showSnackbar(
                                     "Не удалось запустить ${game.name}. Запись и файл сохранены."
@@ -443,7 +492,7 @@ private fun LibraryScreen(
                 Spacer(Modifier.height(17.dp))
                 Text("Твой ПК.\nТеперь в кармане.", color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
-                Text("Библиотека EXE, ярлыки и проверка совместимости устройства. Windows runtime пока в разработке.",
+                Text("Библиотека EXE, ярлыки и запуск через Winlator. Совместимость зависит от игры и устройства.",
                     color = Color(0xFFB5BED0), fontSize = 13.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(18.dp))
                 Button(
@@ -511,7 +560,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.5.0 • Диагностика устройства", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.8.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
             }
         }
     }
@@ -558,16 +607,14 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         com.seven.gamehub.runtime.RuntimeAvailability.ERROR -> "ОШИБКА"
     }
     Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Настройки", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Среда запуска и параметры игр", color = Muted, fontSize = 14.sp)
-        SettingsCard(runtimeStatus.engineName, runtimeStatus.message, Icons.Rounded.Gamepad, runtimeLabel)
-        SettingsCard("Графика", "Vulkan, DXVK, Turnip и OpenGL", Icons.Rounded.Tune, "СКОРО")
-        SettingsCard("Контейнеры", "Отдельные префиксы и настройки для игр", Icons.Rounded.Settings, "СКОРО")
+        Text("Настройки SevenX", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Библиотека, ярлыки и профили отдельных игр", color = Muted, fontSize = 14.sp)
+        SettingsCard("Библиотека", "Импорт EXE/SETUP и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
+        SettingsCard("Профили игр", "Индивидуальные параметры запуска для каждой игры", Icons.Rounded.Tune, "В РАЗРАБОТКЕ")
+        SettingsCard("Ярлыки", "Быстрый запуск игр с рабочего стола Android", Icons.Rounded.Gamepad, "АКТИВНО")
         Spacer(Modifier.height(4.dp))
-        SettingsCard("Архитектура устройства", diagnostics.primaryAbi, Icons.Rounded.Info, if (diagnostics.supportsArm64) "ARM64" else "ABI")
-        SettingsCard("Совместимость", diagnostics.summary, Icons.Rounded.Tune, if (diagnostics.supportsArm64) "ПРОВЕРЕНО" else "ОГРАНИЧЕНО")
-        Spacer(Modifier.height(4.dp))
-        Text("EXE-файлы принимаются через файловый менеджер и проверяются перед импортом. Для реального запуска ещё требуется встроенная среда Wine и соответствующий транслятор x86/x64. Совместимость зависит от процессора и графического драйвера.",
+        SettingsCard("SevenX Desktop", runtimeStatus.message, Icons.Rounded.Settings, runtimeLabel)
+        Text("Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop. SevenX отвечает только за библиотеку и игровые профили.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }
