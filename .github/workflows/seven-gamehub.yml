@@ -16,7 +16,7 @@ on:
 
 jobs:
   build-sevenx:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +31,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: |
-            platform-tools
             platforms;android-35
             build-tools;35.0.0
           accept-android-sdk-licenses: true
@@ -49,7 +48,7 @@ jobs:
           path: seven-gamehub/app/build/outputs/apk/debug/app-debug.apk
 
   build-winlator-reference-runtime:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout pinned Winlator source
         uses: actions/checkout@v4
@@ -64,7 +63,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: |
-            platform-tools
             platforms;android-35
             build-tools;35.0.0
             ndk;24.0.8215888
