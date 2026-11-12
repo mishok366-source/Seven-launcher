@@ -110,6 +110,25 @@ private const val PREFS_NAME = "seven_gamehub_library"
 
 private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
 
+// Installer entries are removed from the SevenX library only after the runtime
+// confirms that Windows successfully started the installer. The imported file
+// itself is never deleted by this policy.
+private fun isInstallerName(name: String): Boolean {
+    val baseName = name.substringBeforeLast('.', name).lowercase()
+    return baseName == "setup" || baseName.contains("setup") ||
+        baseName == "install" || baseName.contains("installer") || baseName.contains("install")
+}
+
+private enum class RuntimeLaunchResult { STARTED, NOT_INSTALLED, FAILED }
+
+private object WindowsRuntime {
+    // Safe placeholder until Wine + Box64 are integrated. Returning NOT_INSTALLED
+    // guarantees that the library cleanup path cannot run prematurely.
+    suspend fun launch(context: Context, game: GameEntry): RuntimeLaunchResult {
+        return RuntimeLaunchResult.NOT_INSTALLED
+    }
+}
+
 private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
     return runCatching {
         context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
@@ -166,7 +185,7 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, Uri.fromFile(destination), false)
+        GameEntry(displayName, Uri.fromFile(destination), isInstallerName(displayName))
     }.getOrNull()
 }
 
@@ -298,7 +317,7 @@ private fun SevenGameHubApp(
             if (!isExeName(name) || !hasPortableExecutableHeader(context, uri)) {
                 scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE-файл") }
             } else {
-                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller)
+                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isInstallerName(name))
                 scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
             }
         }
@@ -342,9 +361,23 @@ private fun SevenGameHubApp(
                     },
                     onRun = { game ->
                         scope.launch {
-                            snackbar.showSnackbar(
-                                "Файл сохранён. Для запуска ${game.name} ещё нужно встроить Wine + Box64."
-                            )
+                            when (WindowsRuntime.launch(context, game)) {
+                                RuntimeLaunchResult.STARTED -> {
+                                    if (game.isInstaller) {
+                                        // Remove only the library entry. Do not delete game.uri or its file.
+                                        games = games.filterNot { it.uri == game.uri }
+                                        snackbar.showSnackbar("${game.name} запущен и убран из библиотеки. Файл остался на устройстве.")
+                                    } else {
+                                        snackbar.showSnackbar("${game.name} запущен")
+                                    }
+                                }
+                                RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar(
+                                    "Запуск пока недоступен: Wine + Box64 ещё не подключены. Установщик остался в библиотеке."
+                                )
+                                RuntimeLaunchResult.FAILED -> snackbar.showSnackbar(
+                                    "Не удалось запустить ${game.name}. Запись и файл сохранены."
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.padding(padding)
@@ -485,7 +518,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.2.0 • Улучшенная проверка EXE", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.3.0 • Правило автоуборки установщиков", color = Muted, fontSize = 11.sp)
             }
         }
     }
