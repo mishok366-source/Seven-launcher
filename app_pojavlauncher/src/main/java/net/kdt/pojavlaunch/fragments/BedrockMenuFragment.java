@@ -1,13 +1,17 @@
 package net.kdt.pojavlaunch.fragments;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -19,6 +23,13 @@ public class BedrockMenuFragment extends Fragment {
     public static final String TAG = "BedrockMenuFragment";
     private static final String BEDROCK_PACKAGE = "com.mojang.minecraftpe";
 
+    private final ActivityResultLauncher<String[]> addonPicker =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(),
+                    uri -> importIntoMinecraft(uri));
+    private final ActivityResultLauncher<String[]> worldPicker =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(),
+                    uri -> importIntoMinecraft(uri));
+
     public BedrockMenuFragment() {
         super(R.layout.fragment_bedrock_menu);
     }
@@ -27,6 +38,8 @@ public class BedrockMenuFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         TextView status = view.findViewById(R.id.bedrock_status);
         Button launch = view.findViewById(R.id.bedrock_launch_button);
+        Button importAddon = view.findViewById(R.id.bedrock_import_addon_button);
+        Button importWorld = view.findViewById(R.id.bedrock_import_world_button);
         Button back = view.findViewById(R.id.bedrock_back_button);
 
         boolean installed = isBedrockInstalled();
@@ -34,6 +47,8 @@ public class BedrockMenuFragment extends Fragment {
                 ? "Minecraft Bedrock is installed on this device."
                 : "Minecraft Bedrock was not found. Install the official game first.");
         launch.setText(installed ? "OPEN MINECRAFT" : "CHECK AGAIN");
+        importAddon.setEnabled(installed);
+        importWorld.setEnabled(installed);
 
         launch.setOnClickListener(v -> {
             if (!isBedrockInstalled()) {
@@ -53,9 +68,34 @@ public class BedrockMenuFragment extends Fragment {
             startActivity(gameIntent);
         });
 
+        importAddon.setOnClickListener(v ->
+                addonPicker.launch(new String[]{"*/*"}));
+        importWorld.setOnClickListener(v ->
+                worldPicker.launch(new String[]{"*/*"}));
         back.setOnClickListener(v ->
-                Tools.swapFragment(requireActivity(), EditionSelectFragment.class,
-                        EditionSelectFragment.TAG, null));
+                Tools.backToMainMenu(requireActivity()));
+    }
+
+    private void importIntoMinecraft(@Nullable Uri uri) {
+        if (uri == null) return;
+        if (!isBedrockInstalled()) {
+            Toast.makeText(requireContext(),
+                    "Minecraft Bedrock is not installed.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Intent importIntent = new Intent(Intent.ACTION_VIEW);
+        importIntent.setDataAndType(uri, "application/octet-stream");
+        importIntent.setPackage(BEDROCK_PACKAGE);
+        importIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivity(importIntent);
+        } catch (ActivityNotFoundException error) {
+            Toast.makeText(requireContext(),
+                    "Minecraft could not import this file. Check that it is a valid .mcpack or .mcworld file.",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private boolean isBedrockInstalled() {
