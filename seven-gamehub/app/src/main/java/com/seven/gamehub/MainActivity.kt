@@ -158,10 +158,7 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         } ?: uri.lastPathSegment ?: "Windows-app.exe"
 
         if (!isExeName(displayName)) return@withContext null
-        val headerOk = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.read() == 0x4D && input.read() == 0x5A
-        } ?: false
-        if (!headerOk) return@withContext null
+        if (!hasPortableExecutableHeader(context, uri)) return@withContext null
 
         val importDir = File(context.filesDir, "exe-imports").apply { mkdirs() }
         val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100)
