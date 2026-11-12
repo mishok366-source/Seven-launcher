@@ -218,7 +218,9 @@ public class BedrockMenuFragment extends Fragment {
             request.setMimeType("application/octet-stream");
             request.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setAllowedOverMetered(true);
+            if (Build.VERSION.SDK_INT >= 24) {
+                request.setAllowedOverMetered(true);
+            }
             request.setAllowedOverRoaming(false);
             request.setDestinationInExternalFilesDir(requireContext(),
                     Environment.DIRECTORY_DOWNLOADS, "Seven/" + fileName);
@@ -245,6 +247,7 @@ public class BedrockMenuFragment extends Fragment {
     private void refreshDownloadProgress() {
         if (downloadManager == null || activeDownloadId == -1L || !isAdded()) return;
 
+        downloadProgress.setVisibility(View.VISIBLE);
         Cursor cursor = null;
         try {
             DownloadManager.Query query = new DownloadManager.Query().setFilterById(activeDownloadId);
