@@ -139,6 +139,9 @@ public class LauncherActivity extends BaseActivity {
     private final FragmentManager.FragmentLifecycleCallbacks mFragmentCallbackListener = new FragmentManager.FragmentLifecycleCallbacks() {
         @Override
         public void onFragmentResumed(@NonNull FragmentManager fm, @NonNull Fragment f) {
+            boolean bedrockOrEditionScreen = f instanceof EditionSelectFragment
+                    || f instanceof net.kdt.pojavlaunch.fragments.BedrockMenuFragment;
+            mAccountSpinner.setVisibility(bedrockOrEditionScreen ? View.GONE : View.VISIBLE);
             mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), f instanceof MainMenuFragment
                     ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
         }
