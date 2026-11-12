@@ -30,9 +30,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
+          packages: "platforms;android-35 build-tools;35.0.0"
           accept-android-sdk-licenses: true
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -62,11 +60,7 @@ jobs:
       - name: Set up Android SDK and native toolchains
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platforms;android-35
-            build-tools;35.0.0
-            ndk;24.0.8215888
-            cmake;3.22.1
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;24.0.8215888 cmake;3.22.1"
           accept-android-sdk-licenses: true
       - name: Apply SevenX launch bridge
         run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
