@@ -353,7 +353,7 @@ private fun SevenGameHubApp(
                     },
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game)) {
+                            when (WindowsRuntime.launch(context, game.uri)) {
                                 RuntimeLaunchResult.STARTED -> {
                                     if (game.isInstaller) {
                                         // Remove only the library entry. Do not delete game.uri or its file.
