@@ -1,32 +1,34 @@
 # SevenX
 
-SevenX is an Android game hub for importing Windows EXE files, keeping a persistent library, and creating Android home-screen shortcuts.
+SevenX is the game manager for Windows games on Android. It owns the game library, EXE/SETUP imports, game shortcuts, launch history, and per-game profiles.
 
-## Current development milestone: 0.7.0
+## Two-part architecture
 
-- Dark Jetpack Compose interface.
-- EXE and SETUP import with PE header validation.
-- Persistent library; removing an entry never deletes the source file.
-- Android home-screen shortcuts.
-- Device diagnostics.
-- SevenX-to-Winlator launch bridge is being built as a separate companion APK.
-- SevenX passes a read-granted content URI to the companion runtime.
-- Winlator asks the user to choose an existing container, copies the executable into that container, and launches it through its own XServer/Wine startup path.
-- The runtime sends a one-shot callback only after its Wine/Box64 launcher process has been created. SevenX removes SETUP entries from the library only after this confirmation; the imported file is never deleted.
+### SevenX — game manager
+- Persistent library of imported Windows games and installers.
+- Import validation, shortcuts, favorites, and launch history.
+- Per-game launch profiles: preferred Winlator container, launch arguments, and game-specific overrides.
+- Game/library settings only. SevenX does not expose low-level Wine/Box64 engine controls.
+
+### SevenX Desktop — Windows environment
+- A separately built Winlator-based runtime with SevenX branding and a redesigned dark-purple interface.
+- A dedicated **Рабочий стол** entry starts a Wine desktop session in a selected container.
+- The **Приложения** section opens the Windows shortcut/application list.
+- Existing Winlator capabilities remain available: file manager, containers, Wine, Box64, graphics and audio configuration, input controls, and display settings.
+- Runtime settings belong here: container configuration, Wine/Box64 versions and presets, graphics drivers, DXVK/VKD3D, audio, resolution, and input.
+
+SevenX launches a game through the runtime bridge. The runtime asks for a container when no game-specific container has been selected. It copies the EXE into that container and starts it through Winlator's XServer/Wine path. The original imported file is not deleted.
 
 ## Build outputs
 
-The CI workflow builds two separate APKs:
+The CI workflow builds two APKs:
+- `sevenx-debug` — SevenX game manager.
+- `winlator-sevenx-runtime-debug` — redesigned SevenX Desktop runtime.
 
-- `sevenx-debug` — SevenX game hub.
-- `winlator-sevenx-runtime-debug` — Winlator companion runtime with the SevenX bridge patch.
+Install both APKs to use the bridge. The runtime requires first-time setup and a configured container. A successful CI build does not prove compatibility on every device or with every Windows application.
 
-Install both APKs to use the bridge. The runtime still requires first-time setup and a configured Winlator container. A successful CI build does not prove compatibility on every device or with every Windows application.
-
-## Device compatibility
+## Compatibility and status
 
 The runtime uses Wine and Box64 and depends on the Android device's CPU, Vulkan/OpenGL drivers, memory, and the individual application's requirements. Some Windows applications will not work, even when the runtime installs correctly.
 
-## Project status
-
-The bridge is under CI validation. Physical-device testing is still required before describing EXE launching as production-ready.
+CI compilation is not physical-device validation. Desktop mode, ordinary Windows applications, and game launching must be tested on an ARM64 Android device before describing them as production-ready.
