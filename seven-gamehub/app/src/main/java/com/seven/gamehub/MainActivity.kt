@@ -607,16 +607,14 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         com.seven.gamehub.runtime.RuntimeAvailability.ERROR -> "ОШИБКА"
     }
     Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Настройки", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Среда запуска и параметры игр", color = Muted, fontSize = 14.sp)
-        SettingsCard(runtimeStatus.engineName, runtimeStatus.message, Icons.Rounded.Gamepad, runtimeLabel)
-        SettingsCard("Графика", "Vulkan, DXVK, Turnip и OpenGL", Icons.Rounded.Tune, "СКОРО")
-        SettingsCard("Контейнеры", "Отдельные префиксы и настройки для игр", Icons.Rounded.Settings, "СКОРО")
+        Text("Настройки SevenX", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Библиотека, ярлыки и профили отдельных игр", color = Muted, fontSize = 14.sp)
+        SettingsCard("Библиотека", "Импорт EXE/SETUP и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
+        SettingsCard("Профили игр", "Индивидуальные параметры запуска для каждой игры", Icons.Rounded.Tune, "В РАЗРАБОТКЕ")
+        SettingsCard("Ярлыки", "Быстрый запуск игр с рабочего стола Android", Icons.Rounded.Gamepad, "АКТИВНО")
         Spacer(Modifier.height(4.dp))
-        SettingsCard("Архитектура устройства", diagnostics.primaryAbi, Icons.Rounded.Info, if (diagnostics.supportsArm64) "ARM64" else "ABI")
-        SettingsCard("Совместимость", diagnostics.summary, Icons.Rounded.Tune, if (diagnostics.supportsArm64) "ПРОВЕРЕНО" else "ОГРАНИЧЕНО")
-        Spacer(Modifier.height(4.dp))
-        Text("EXE-файлы принимаются через файловый менеджер и проверяются перед импортом. Для реального запуска ещё требуется встроенная среда Wine и соответствующий транслятор x86/x64. Совместимость зависит от процессора и графического драйвера.",
+        SettingsCard("SevenX Desktop", runtimeStatus.message, Icons.Rounded.Settings, runtimeLabel)
+        Text("Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop. SevenX отвечает только за библиотеку и игровые профили.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }
