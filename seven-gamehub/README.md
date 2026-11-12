@@ -1,16 +1,17 @@
 # SevenX
 
-Standalone Android app foundation for a Windows-game launcher.
+Standalone Android GameHub for organizing Windows EXE applications and installers.
 
 ## Current foundation
 
-- Dark Seven-themed Jetpack Compose interface.
-- Game library and settings screens.
-- Android document picker for selecting local EXE files.
-- Selected EXE names and document URIs are saved between app launches.
-- Persisted Android document permissions are checked when restoring the library.
-- Games can be removed from the library without deleting their original files.
-- Explicit placeholder state for the not-yet-integrated Wine/Proton runtime.
+- Dark SevenX-themed Jetpack Compose interface.
+- Persistent local library for selected EXE files and SETUP installers.
+- Android Storage Access Framework picker with persisted read permissions.
+- Remove entries from the SevenX library without deleting the original files.
+- Request a home-screen shortcut for each library entry.
+- A pinned shortcut opens SevenX and resolves the selected library entry.
+- Separate Games and Settings screens.
+- Explicit status messaging while the Windows compatibility runtime is not yet installed.
 
 ## Build
 
@@ -22,6 +23,8 @@ gradle :app:assembleDebug
 
 The APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Runtime status
+## Windows runtime status
 
-This is the UI and Android project foundation only. It does **not** execute Windows programs yet. The next stage is evaluating an Android-compatible Wine runtime with a clear distribution and licensing path, then implementing per-game prefixes, process launch, graphics backends, and logs. Compatibility will depend on the Android device, GPU drivers, and the Windows application.
+SevenX does **not yet execute Windows programs**. The Run action currently reports that the runtime is not connected. The next development stage is a real Android-compatible Wine environment with the required x86/x64 translation layer, per-app launch configuration, and useful error logs.
+
+The intended first compatibility checks are small, ordinary Windows desktop applications before attempting larger launchers or games. Compatibility depends on the device CPU, Android version, GPU/driver support, and each application's requirements. No EXE launch is considered supported until it has been tested on-device.
