@@ -38,12 +38,26 @@
             android:textColor="@color/primary_text"
             android:textSize="18sp"
             android:textStyle="bold" />
+        <Button
+            android:id="@+id/bedrock_import_addon_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:text="IMPORT ADD-ON (.MCPACK)"
+            android:textAllCaps="false" />
+        <Button
+            android:id="@+id/bedrock_import_world_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="10dp"
+            android:text="IMPORT WORLD (.MCWORLD)"
+            android:textAllCaps="false" />
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
             android:gravity="center"
-            android:text="Bedrock requires the official Minecraft app to be installed. Add-on, texture-pack and world management will be added here next."
+            android:text="Import add-ons and worlds through the official Minecraft import flow. Graphics settings and game updates remain managed by Minecraft / the app store."
             android:textColor="@color/secondary_text"
             android:textSize="13sp" />
         <Button
