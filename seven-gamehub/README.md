@@ -1,38 +1,32 @@
 # SevenX
 
-Standalone Android GameHub for organizing Windows EXE applications and installers.
+SevenX is an Android game hub for importing Windows EXE files, keeping a persistent library, and creating Android home-screen shortcuts.
 
-## Current foundation
+## Current development milestone: 0.7.0
 
-- Dark SevenX-themed Jetpack Compose interface.
-- Persistent local library for selected EXE files and installers.
-- Android Storage Access Framework picker with persisted read permissions.
-- Register as an Android "Open with" handler for .exe files shared by file managers.
-- Validate the .exe extension, DOS MZ signature, and PE signature at the declared PE offset.
-- Copy externally opened EXE files into SevenX private storage so imports survive temporary URI grants.
-- Device diagnostics for supported CPU ABI, Android-reported Vulkan features, and total RAM.
-- Remove entries from the SevenX library without deleting original files.
-- Detect likely installer filenames such as setup.exe and installer.exe.
-- Remove a SETUP entry only after a future runtime confirms that the installer process successfully started. The EXE file itself is never deleted by this cleanup policy.
-- Request a home-screen shortcut for each library entry.
-- Dedicated Windows runtime engine API separated from the library UI.
+- Dark Jetpack Compose interface.
+- EXE and SETUP import with PE header validation.
+- Persistent library; removing an entry never deletes the source file.
+- Android home-screen shortcuts.
+- Device diagnostics.
+- SevenX-to-Winlator launch bridge is being built as a separate companion APK.
+- SevenX passes a read-granted content URI to the companion runtime.
+- Winlator asks the user to choose an existing container, copies the executable into that container, and launches it through its own XServer/Wine startup path.
+- The runtime sends a one-shot callback only after its Wine/Box64 launcher process has been created. SevenX removes SETUP entries from the library only after this confirmation; the imported file is never deleted.
 
-## Build SevenX
+## Build outputs
 
-With JDK 17, Android SDK 35 and Gradle 8.9 installed:
+The CI workflow builds two separate APKs:
 
-```bash
-gradle :app:assembleDebug
-```
+- `sevenx-debug` — SevenX game hub.
+- `winlator-sevenx-runtime-debug` — Winlator companion runtime with the SevenX bridge patch.
 
-The APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
+Install both APKs to use the bridge. The runtime still requires first-time setup and a configured Winlator container. A successful CI build does not prove compatibility on every device or with every Windows application.
 
-## Runtime integration status
+## Device compatibility
 
-The Android source of Winlator is now pinned as a Git submodule at `winlator-source`, and CI builds a separate reference APK from that exact upstream revision. This makes the real Wine/Box64 source and native build part of the project workflow.
+The runtime uses Wine and Box64 and depends on the Android device's CPU, Vulkan/OpenGL drivers, memory, and the individual application's requirements. Some Windows applications will not work, even when the runtime installs correctly.
 
-**This is not yet a working EXE bridge.** Winlator's display Activity is private to its own app, and its exported launcher Activity has no documented public action for launching an arbitrary EXE from SevenX. The separate reference APK therefore does not mean SevenX can already run EXE files. A SevenX-specific runtime bridge, container/prefix lifecycle, process-start callback, and physical-device validation are still required.
+## Project status
 
-See [ENGINE_INTEGRATION.md](ENGINE_INTEGRATION.md) for the pinned source, exact Android integration boundary, licensing notes, and next implementation steps.
-
-No EXE is considered runnable until the bridge is implemented and tested on a physical device.
+The bridge is under CI validation. Physical-device testing is still required before describing EXE launching as production-ready.
