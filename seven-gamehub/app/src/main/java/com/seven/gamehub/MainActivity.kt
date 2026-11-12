@@ -303,7 +303,18 @@ private fun SevenGameHubApp(
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                snackbar.showSnackbar("Открыт ярлык: ${targetGame.name}. Для запуска нужен Windows runtime.")
+                when (WindowsRuntime.launch(context, targetGame.uri)) {
+                    RuntimeLaunchResult.STARTED -> snackbar.showSnackbar("${targetGame.name} запущен")
+                    RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
+                        "${targetGame.name} передан в Winlator. Ждём подтверждения запуска."
+                    )
+                    RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar(
+                        "Winlator с поддержкой SevenX не установлен."
+                    )
+                    RuntimeLaunchResult.FAILED -> snackbar.showSnackbar(
+                        "Не удалось передать ${targetGame.name} в Winlator."
+                    )
+                }
             } else {
                 snackbar.showSnackbar("Файл из ярлыка не найден в библиотеке.")
             }
