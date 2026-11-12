@@ -7,6 +7,9 @@ import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Bundle
+import android.os.Build
+import java.io.File
+import java.util.UUID
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -72,6 +75,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val Background = Color(0xFF090B12)
 private val Panel = Color(0xFF141925)
@@ -102,6 +107,41 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
 }
 
 private const val PREFS_NAME = "seven_gamehub_library"
+
+private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
+
+private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            input.read() == 0x4D && input.read() == 0x5A
+        } ?: false
+    }.getOrDefault(false)
+}
+
+private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = withContext(Dispatchers.IO) {
+    runCatching {
+        val displayName = context.contentResolver.query(
+            uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } ?: uri.lastPathSegment ?: "Windows-app.exe"
+
+        if (!isExeName(displayName)) return@withContext null
+        val headerOk = context.contentResolver.openInputStream(uri)?.use { input ->
+            input.read() == 0x4D && input.read() == 0x5A
+        } ?: false
+        if (!headerOk) return@withContext null
+
+        val importDir = File(context.filesDir, "exe-imports").apply { mkdirs() }
+        val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100)
+        val destination = File(importDir, "${UUID.randomUUID()}_$safeName")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            destination.outputStream().use { output -> input.copyTo(output) }
+        } ?: return@withContext null
+        GameEntry(displayName, Uri.fromFile(destination), false)
+    }.getOrNull()
+}
+
 private const val PREFS_GAMES = "games"
 
 private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
@@ -115,8 +155,10 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
             for (index in 0 until array.length()) {
                 val item = array.getJSONObject(index)
                 val uriString = item.getString("uri")
-                if (uriString in permissions) {
-                    add(GameEntry(item.getString("name"), Uri.parse(uriString), item.optBoolean("isInstaller", false)))
+                val savedUri = Uri.parse(uriString)
+                val privateFileExists = savedUri.scheme == "file" && savedUri.path?.let { File(it).isFile } == true
+                if (privateFileExists || uriString in permissions) {
+                    add(GameEntry(item.getString("name"), savedUri, item.optBoolean("isInstaller", false)))
                 }
             }
         }
@@ -134,14 +176,23 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
 
 class MainActivity : ComponentActivity() {
     private val shortcutGameUri = mutableStateOf<String?>(null)
+    private val incomingExeUri = mutableStateOf<String?>(null)
+
+    private fun readLaunchIntent(launchIntent: Intent?) {
+        shortcutGameUri.value = launchIntent?.getStringExtra("sevenx_game_uri")
+        incomingExeUri.value = if (shortcutGameUri.value == null &&
+            launchIntent?.action == Intent.ACTION_VIEW) launchIntent.data?.toString() else null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        shortcutGameUri.value = intent.getStringExtra("sevenx_game_uri")
+        readLaunchIntent(intent)
         setContent {
             SevenGameHubApp(
                 shortcutGameUri = shortcutGameUri.value,
-                onShortcutHandled = { shortcutGameUri.value = null }
+                onShortcutHandled = { shortcutGameUri.value = null },
+                incomingExeUri = incomingExeUri.value,
+                onIncomingExeHandled = { incomingExeUri.value = null }
             )
         }
     }
@@ -149,14 +200,16 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        shortcutGameUri.value = intent.getStringExtra("sevenx_game_uri")
+        readLaunchIntent(intent)
     }
 }
 
 @Composable
 private fun SevenGameHubApp(
     shortcutGameUri: String?,
-    onShortcutHandled: () -> Unit
+    onShortcutHandled: () -> Unit,
+    incomingExeUri: String?,
+    onIncomingExeHandled: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -175,12 +228,28 @@ private fun SevenGameHubApp(
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                snackbar.showSnackbar("Открыт ярлык: ${targetGame.name}. Среда запуска EXE пока не подключена.")
+                snackbar.showSnackbar("Открыт ярлык: ${targetGame.name}. Для запуска нужен Windows runtime.")
             } else {
                 snackbar.showSnackbar("Файл из ярлыка не найден в библиотеке.")
             }
             onShortcutHandled()
         }
+    }
+
+    LaunchedEffect(incomingExeUri) {
+        val uriString = incomingExeUri ?: return@LaunchedEffect
+        selectedTab = 0
+        val imported = importExternalExe(context, Uri.parse(uriString))
+        if (imported != null) {
+            val existing = games.firstOrNull { it.name == imported.name }
+            if (existing == null) games = games + imported
+            snackbar.showSnackbar(
+                if (existing == null) "${imported.name} импортирован в SevenX" else "${imported.name} уже есть в библиотеке"
+            )
+        } else {
+            snackbar.showSnackbar("Не удалось открыть файл. Нужен корректный EXE с расширением .exe.")
+        }
+        onIncomingExeHandled()
     }
 
     val exePicker = rememberLauncherForActivityResult(
@@ -198,8 +267,12 @@ private fun SevenGameHubApp(
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: uri.lastPathSegment ?: "Windows game.exe"
 
-            if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller)
-            scope.launch { snackbar.showSnackbar("$name добавлена в библиотеку") }
+            if (!isExeName(name) || !hasPortableExecutableHeader(context, uri)) {
+                scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE-файл") }
+            } else {
+                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller)
+                scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
+            }
         }
     }
 
@@ -239,8 +312,12 @@ private fun SevenGameHubApp(
                     onRemove = { game ->
                         games = games.filterNot { it.uri == game.uri }
                     },
-                    onRun = {
-                        scope.launch { snackbar.showSnackbar("Wine/Proton ещё не подключён — это следующий этап") }
+                    onRun = { game ->
+                        scope.launch {
+                            snackbar.showSnackbar(
+                                "Файл сохранён. Для запуска ${game.name} ещё нужно встроить Wine + Box64."
+                            )
+                        }
                     },
                     modifier = Modifier.padding(padding)
                 )
@@ -423,7 +500,9 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsCard("Графика", "Vulkan, DXVK, Turnip и OpenGL", Icons.Rounded.Tune, "СКОРО")
         SettingsCard("Контейнеры", "Отдельные префиксы и настройки для игр", Icons.Rounded.Settings, "СКОРО")
         Spacer(Modifier.height(4.dp))
-        Text("Сначала создаём стабильную оболочку. Затем подключим совместимую Android-среду Wine и проверим реальный запуск EXE.",
+        SettingsCard("Архитектура устройства", Build.SUPPORTED_ABIS.firstOrNull() ?: "Не определена", Icons.Rounded.Info, "ОБНАРУЖЕНО")
+        Spacer(Modifier.height(4.dp))
+        Text("EXE-файлы принимаются через файловый менеджер и проверяются перед импортом. Для реального запуска ещё требуется встроенная среда Wine и соответствующий транслятор x86/x64. Совместимость зависит от процессора и графического драйвера.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }
