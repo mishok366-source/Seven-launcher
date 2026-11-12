@@ -18,7 +18,9 @@ Standalone Android GameHub for organizing Windows EXE applications and installer
 - Request a home-screen shortcut for each library entry.
 - A pinned shortcut opens SevenX and resolves the selected library entry.
 - Separate Games and Settings screens.
-- Explicit status messaging while the Windows compatibility runtime is not yet installed.
+- A dedicated Windows runtime engine API, separated from the library UI.
+- Live runtime availability messaging in Settings.
+- An integration and licensing checklist for the planned Wine + Box64 backend.
 
 ## Build
 
@@ -32,9 +34,9 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Windows runtime status
 
-SevenX does **not yet execute Windows programs**. The Run action reports that the runtime is not connected. The 0.3.0 build includes a safe launch-result contract for future runtime integration: installer entries are removed from the library only after a confirmed successful start. Since Wine + Box64 are not integrated yet, the current runtime always reports unavailable and no installer entry is automatically removed. SevenX can now receive EXE files through Android's `ACTION_VIEW` flow, validate the DOS header and the PE signature at the declared PE offset, and import a private copy. This is file intake, not execution.
+SevenX does **not yet execute Windows programs**. The Run action reports that the runtime is not connected. The 0.4.0 build separates the Windows runtime behind a dedicated engine API. The launch-result contract removes installer entries from the library only after a confirmed successful process start. Since Wine + Box64 are not integrated yet, the current runtime always reports unavailable and no installer entry is automatically removed. SevenX can now receive EXE files through Android's `ACTION_VIEW` flow, validate the DOS header and the PE signature at the declared PE offset, and import a private copy. This is file intake, not execution.
 
-A real Android-compatible Wine environment is still required, together with the matching x86/x64 translation layer (for example, Box64 on supported ARM64 devices), runtime asset installation, per-app prefixes/containers, graphics and audio integration, process lifecycle handling, and useful error logs. The Winlator project is a relevant technical reference, but its runtime is not embedded or invoked by SevenX yet. Its source and third-party components have their own licenses and must be reviewed before any code or binary redistribution.
+A real Android-compatible Wine environment is still required, together with the matching x86/x64 translation layer (for example, Box64 on supported ARM64 devices), runtime asset installation, per-app prefixes/containers, graphics and audio integration, process lifecycle handling, and useful error logs. The Winlator project is a technical reference, but its runtime is not embedded or invoked by SevenX. Its application source declares LGPL-2.1 and the project uses separate submodules and third-party components; every component must be reviewed independently before reuse or redistribution. See [ENGINE_INTEGRATION.md](ENGINE_INTEGRATION.md) for the current architecture and licensing checklist.
 
 No EXE is considered runnable until a runtime is actually integrated and the app is tested on a physical device.
 
