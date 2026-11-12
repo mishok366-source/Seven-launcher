@@ -16,6 +16,7 @@ jobs:
     env:
       GPLAY_KEYSTORE_PASSWORD: ${{ secrets.GPLAY_KEYSTORE_PASSWORD }}
       CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+      SEVEN_LAUNCHER_CI_SIGNING: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
