@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.winlator" />
+    </queries>
     <application
         android:allowBackup="true"
         android:label="SevenX"
@@ -29,5 +32,17 @@
                 <data android:scheme="content" android:mimeType="application/vnd.microsoft.portable-executable" android:pathPattern=".*\\.exe" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/sevenx_file_paths" />
+        </provider>
+        <receiver
+            android:name=".runtime.RuntimeLaunchReceiver"
+            android:exported="false" />
     </application>
 </manifest>
