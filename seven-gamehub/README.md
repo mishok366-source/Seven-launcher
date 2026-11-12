@@ -8,7 +8,7 @@ Standalone Android GameHub for organizing Windows EXE applications and installer
 - Persistent local library for selected EXE files and SETUP installers.
 - Android Storage Access Framework picker with persisted read permissions.
 - Register as an Android `Open with` handler for `.exe` files shared by file managers.
-- Validate the `.exe` extension and the Windows `MZ` executable header before importing.
+- Validate the `.exe` extension, the DOS `MZ` signature, and the `PE\0\0` signature at the DOS header's `e_lfanew` offset before importing. Malformed or truncated headers and unreasonable PE offsets are rejected.
 - Copy externally opened EXE files into SevenX private storage so the import survives temporary URI grants.
 - Display the device's primary supported CPU ABI in Settings.
 - Remove entries from the SevenX library without deleting the original files.
@@ -29,7 +29,7 @@ The APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Windows runtime status
 
-SevenX does **not yet execute Windows programs**. The Run action still reports that the runtime is not connected. SevenX can now receive EXE files through Android's `ACTION_VIEW` flow, validate the basic PE/DOS header, and import a private copy. This is file intake, not execution.
+SevenX does **not yet execute Windows programs**. The Run action still reports that the runtime is not connected. SevenX can now receive EXE files through Android's `ACTION_VIEW` flow, validate the DOS header and the PE signature at the declared PE offset, and import a private copy. This is file intake, not execution.
 
 A real Android-compatible Wine environment is still required, together with the matching x86/x64 translation layer (for example, Box64 on supported ARM64 devices), runtime asset installation, per-app prefixes/containers, graphics and audio integration, process lifecycle handling, and useful error logs. The Winlator project is a relevant technical reference, but its runtime is not embedded or invoked by SevenX yet. Its source and third-party components have their own licenses and must be reviewed before any code or binary redistribution.
 
