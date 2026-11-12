@@ -153,7 +153,7 @@ public class SevenXBridgeActivity extends Activity {
             Intent displayIntent = new Intent(this, XServerDisplayActivity.class);
             displayIntent.putExtra("container_id", container.id);
             displayIntent.putExtra("exec_path", destination.getAbsolutePath());
-            displayIntent.putExtra("sevenx_callback", getIntent().getParcelableExtra("sevenx_callback"));
+            displayIntent.putExtra("sevenx_callback", (PendingIntent)getIntent().getParcelableExtra("sevenx_callback"));
             startActivity(displayIntent);
             finish();
         }
