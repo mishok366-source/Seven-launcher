@@ -86,10 +86,20 @@ android {
             keyPassword "android"
         }
         customRelease {
-            storeFile file("aamc_upload.jks")
-            storePassword System.getenv("GPLAY_KEYSTORE_PASSWORD")
-            keyAlias "android_github_release"
-            keyPassword System.getenv("GPLAY_KEYSTORE_PASSWORD")
+            // CI builds use the repository's stable debug key so they do not
+            // depend on the upstream Google Play upload keystore or its secret.
+            // This is for test builds only, not Play Store publishing.
+            if (System.getenv("SEVEN_LAUNCHER_CI_SIGNING") == "true") {
+                storeFile file("debug.keystore")
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            } else {
+                storeFile file("aamc_upload.jks")
+                storePassword System.getenv("GPLAY_KEYSTORE_PASSWORD")
+                keyAlias "android_github_release"
+                keyPassword System.getenv("GPLAY_KEYSTORE_PASSWORD")
+            }
         }
         googlePlayBuild {
             storeFile file("upload.jks")
