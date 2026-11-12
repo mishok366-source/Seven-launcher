@@ -5,6 +5,8 @@ import sys
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "seven-gamehub/winlator-source")
 manifest = root / "app/src/main/AndroidManifest.xml"
+styles = root / "app/src/main/res/values/styles.xml"
+strings = root / "app/src/main/res/values/strings.xml"
 display = root / "app/src/main/java/com/winlator/XServerDisplayActivity.java"
 launcher = root / "app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java"
 bridge = root / "app/src/main/java/com/winlator/SevenXBridgeActivity.java"
@@ -24,11 +26,38 @@ manifest_addition = """        <activity
             android:screenOrientation="sensor">
             <intent-filter>
                 <action android:name="com.seven.gamehub.action.RUN_EXE" />
+                <action android:name="com.seven.gamehub.action.OPEN_DESKTOP" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 """
 replace_once(manifest, manifest_anchor, manifest_addition + manifest_anchor)
+
+# Rebrand the companion UI and give it a distinct SevenX desktop visual identity.
+dark_theme_old = """    <style name="AppThemeDark" parent="@style/AppThemeBase">
+        <item name="colorAccent">#0288d1</item>
+        <item name="colorPrimary">#505963</item>
+        <item name="colorPrimaryDark">#3f474f</item>
+        <item name="colorControlNormal">#616161</item>
+        <item name="colorPrimaryText">#fafafa</item>
+        <item name="colorSecondaryText">#9e9e9e</item>
+        <item name="colorPrimarySurface">#1b1e21</item>
+        <item name="colorSecondarySurface">#2d3238</item>
+        <item name="colorPrimaryVariant">#56677a</item>
+        <item name="colorSecondaryVariant">#37424f</item>"""
+dark_theme_new = """    <style name="AppThemeDark" parent="@style/AppThemeBase">
+        <item name="colorAccent">#9B7BFF</item>
+        <item name="colorPrimary">#25213A</item>
+        <item name="colorPrimaryDark">#171426</item>
+        <item name="colorControlNormal">#77718F</item>
+        <item name="colorPrimaryText">#F6F3FF</item>
+        <item name="colorSecondaryText">#AAA4C2</item>
+        <item name="colorPrimarySurface">#11101A</item>
+        <item name="colorSecondarySurface">#201D30</item>
+        <item name="colorPrimaryVariant">#9B7BFF</item>
+        <item name="colorSecondaryVariant">#39324F</item>"""
+replace_once(styles, dark_theme_old, dark_theme_new)
+replace_once(strings, '<string name="app_name">Winlator</string>', '<string name="app_name">SevenX Desktop</string>')
 
 replace_once(
     launcher,
@@ -73,6 +102,16 @@ replace_once(
     "        });\n"
 )
 
+replace_once(
+    display,
+    """            String desktopName = shortcut != null || getIntent().hasExtra("exec_path") ? "nogui" : "shell";
+            String guestExecutable = "wine explorer /desktop="+desktopName+","+xServer.screenInfo+" "+getWineStartCommand();""",
+    """            boolean sevenxDesktopMode = getIntent().getBooleanExtra("sevenx_desktop_mode", false);
+            String desktopName = shortcut != null || getIntent().hasExtra("exec_path") ? "nogui" : "shell";
+            String desktopCommand = "wine explorer /desktop="+desktopName+","+xServer.screenInfo;
+            String guestExecutable = sevenxDesktopMode ? desktopCommand : desktopCommand+" "+getWineStartCommand();"""
+)
+
 bridge.parent.mkdir(parents=True, exist_ok=True)
 bridge.write_text("""package com.winlator;
 
@@ -101,8 +140,9 @@ public class SevenXBridgeActivity extends Activity {
         super.onCreate(savedInstanceState);
         Intent sourceIntent = getIntent();
         Uri source = sourceIntent.getData();
-        if (!"com.seven.gamehub.action.RUN_EXE".equals(sourceIntent.getAction()) ||
-            source == null || !"content".equals(source.getScheme())) {
+        boolean desktopRequest = "com.seven.gamehub.action.OPEN_DESKTOP".equals(sourceIntent.getAction());
+        boolean exeRequest = "com.seven.gamehub.action.RUN_EXE".equals(sourceIntent.getAction());
+        if ((!desktopRequest && !exeRequest) || (!desktopRequest && (source == null || !"content".equals(source.getScheme())))) {
             finishWithError("Некорректный запрос SevenX");
             return;
         }
@@ -124,9 +164,20 @@ public class SevenXBridgeActivity extends Activity {
 
         new AlertDialog.Builder(this)
             .setTitle("Запустить через контейнер")
-            .setItems(labels, (dialog, which) -> launchInContainer(source, containers.get(which)))
+            .setItems(labels, (dialog, which) -> {
+                if (desktopRequest) startDesktop(containers.get(which));
+                else launchInContainer(source, containers.get(which));
+            })
             .setOnCancelListener(dialog -> finish())
             .show();
+    }
+
+    private void startDesktop(Container container) {
+        Intent displayIntent = new Intent(this, XServerDisplayActivity.class);
+        displayIntent.putExtra("container_id", container.id);
+        displayIntent.putExtra("sevenx_desktop_mode", true);
+        startActivity(displayIntent);
+        finish();
     }
 
     private void launchInContainer(Uri source, Container container) {
