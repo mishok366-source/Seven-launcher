@@ -560,7 +560,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.7.0 • Winlator Bridge", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.8.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
             }
         }
     }
