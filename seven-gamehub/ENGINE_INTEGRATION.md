@@ -1,44 +1,37 @@
-# SevenX Windows Runtime Integration
+# SevenX runtime integration
 
-Status: runtime source pinned and a separate reference APK build is being added to CI. The runtime is **not yet callable directly from SevenX**.
+## Architecture
 
-## Pinned runtime source
+SevenX remains the library and launcher UI. Winlator is built as a separate companion APK because upstream Winlator's XServer display Activity is not exported for third-party callers.
 
-SevenX tracks the Android application source from:
+The pinned Winlator source is patched during CI by `scripts/apply-sevenx-winlator-bridge.py`. The patch adds an exported, narrowly scoped `com.seven.gamehub.action.RUN_EXE` entry point.
 
-- Repository: https://github.com/brunodev85/winlator-app
-- Pinned upstream commit: `a030f552f452158a2db64fdb32b490fa19c0b48d`
-- License declared by upstream: LGPL-2.1
-- Submodule path: `seven-gamehub/winlator-source`
+## Launch flow
 
-The pinned source contains the Android app, its native CMake sources, and runtime assets. The CI pipeline builds it as a separate reference APK so native build and packaging failures become visible independently from SevenX's own APK.
+1. SevenX shares an imported EXE using a FileProvider content URI and a temporary read grant.
+2. SevenX supplies a one-shot PendingIntent callback.
+3. The Winlator bridge validates the request and lets the user choose an existing container.
+4. The bridge copies the EXE into that container's `.wine/drive_c/SevenX` directory. It does not modify or delete the original SevenX import.
+5. The bridge starts Winlator's own `XServerDisplayActivity` with its existing `exec_path` flow.
+6. `GuestProgramLauncherComponent` reports whether its Wine/Box64 launcher process was created.
+7. SevenX removes an installer entry from the library only after a positive callback. Failed or unconfirmed launches leave the entry intact.
 
-## Important integration boundary
+## Important boundaries
 
-This is a separate Android application, not a library that SevenX can simply call in-process.
+- The callback confirms creation of Winlator's launcher process, not that the Windows application's main window appeared or that the installer completed successfully.
+- If no Winlator container exists, the user must create one in Winlator and retry.
+- The runtime is a separate APK; it is not merged into the SevenX APK.
+- CI compilation is not physical-device validation. GPU drivers, CPU translation, RAM, Android version, and application-specific dependencies can still prevent a program from working.
+- Winlator source and bundled components retain their upstream licenses. Review and preserve required notices and corresponding source when distributing builds.
 
-The inspected upstream manifest declares `com.winlator.MainActivity` exported, but `com.winlator.XServerDisplayActivity` is not exported. The upstream MainActivity currently handles its own navigation/container extras and does not expose a documented public action for launching an arbitrary EXE supplied by another app. Therefore, simply sending an Intent or a file URI from SevenX does not launch the selected EXE.
+## Validation checklist
 
-The CI reference APK is an integration/build milestone only. It must not be described as an embedded SevenX runtime or as proof that SevenX can execute EXE files.
-
-## Required bridge work
-
-1. Maintain a SevenX-specific, pinned patch/fork of the runtime rather than modifying upstream at build time without review.
-2. Add a narrow, explicit Android bridge that accepts a content URI with a temporary read grant and validates/copies the selected EXE into a runtime-owned location.
-3. Select or create a container/prefix and generate a runtime shortcut for the requested executable.
-4. Start the runtime display/process lifecycle through runtime-owned code; do not attempt to launch the non-exported display Activity from SevenX.
-5. Return an explicit callback/result only after the Windows process has actually been created. An Activity opening or a request being accepted is not a successful launch.
-6. Keep source EXEs untouched. Remove a SETUP entry from the SevenX library only after a confirmed process-start callback; never delete the underlying file.
-7. Test first with a small, user-provided Windows desktop executable on physical ARM64 Android hardware.
-
-## Existing SevenX contract
-
-`WindowsRuntimeEngine` remains the only boundary between the library UI and the runtime. Its `STARTED` result is reserved for confirmed process creation. Until the bridge and callback exist, SevenX must continue to report the runtime as unavailable and must not auto-remove installer entries.
-
-## Licensing and redistribution
-
-The upstream application repository declares LGPL-2.1. The pinned source includes runtime assets and native components whose individual licenses and notices must be reviewed before distributing a combined or modified package. Preserve upstream notices and satisfy applicable source and relinking obligations. This engineering note is not legal advice.
-
-## Device validation
-
-A successful CI build proves only that the source compiles for the configured Android toolchain. It does not prove compatibility with a particular phone, GPU driver, Wine prefix, or Windows application. Physical-device tests remain required.
+- [ ] SevenX debug APK builds.
+- [ ] SevenX-enabled Winlator APK builds.
+- [ ] Both APKs install on an ARM64 Android device.
+- [ ] SevenX can pass a content URI and read grant to Winlator.
+- [ ] Container selection and file copy work.
+- [ ] Wine/Box64 launcher callback is delivered.
+- [ ] SETUP library entry is removed only after a positive callback.
+- [ ] Original imported EXE remains on the device.
+- [ ] Test representative 32-bit and 64-bit Windows applications and graphics backends.
