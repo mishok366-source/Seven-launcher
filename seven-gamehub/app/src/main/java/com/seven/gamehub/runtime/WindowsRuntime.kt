@@ -1,16 +1,23 @@
 package com.seven.gamehub.runtime
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.core.content.FileProvider
+import java.io.File
 
 /**
  * Result returned by the Windows execution backend.
  *
- * STARTED must only be returned after the backend has positively confirmed that
- * the Windows process was created. Merely accepting a request is not enough.
+ * STARTED is reserved for a confirmed process start. LAUNCH_REQUESTED means
+ * Winlator accepted the hand-off but has not yet confirmed process creation.
  */
 internal enum class RuntimeLaunchResult {
     STARTED,
+    LAUNCH_REQUESTED,
     NOT_INSTALLED,
     FAILED
 }
@@ -29,11 +36,6 @@ internal data class RuntimeStatus(
     val message: String
 )
 
-/**
- * Narrow boundary between the SevenX library/UI and the Windows compatibility
- * implementation. Wine, Box64 and graphics backends will be provided behind
- * this API so the library does not depend on a particular runtime's UI.
- */
 internal interface WindowsRuntimeEngine {
     fun status(context: Context): RuntimeStatus
 
@@ -44,18 +46,75 @@ internal interface WindowsRuntimeEngine {
 }
 
 /**
- * Honest no-engine implementation used until a redistributable, Android-ready
- * Wine + translation stack has been integrated and validated on-device.
+ * SevenX-to-Winlator bridge. The runtime receives a temporary read grant for
+ * the imported EXE and a one-shot PendingIntent used only to confirm that its
+ * Wine/Box64 launcher process was created.
  */
 internal object WindowsRuntime : WindowsRuntimeEngine {
-    override fun status(context: Context): RuntimeStatus = RuntimeStatus(
-        engineName = "SevenX Windows Engine",
-        availability = RuntimeAvailability.NOT_INSTALLED,
-        message = "Wine и Box64 пока не подключены"
-    )
+    private const val WINLATOR_PACKAGE = "com.winlator"
+    private const val WINLATOR_BRIDGE = "com.winlator.SevenXBridgeActivity"
+
+    override fun status(context: Context): RuntimeStatus {
+        val installed = runCatching {
+            context.packageManager.getPackageInfo(WINLATOR_PACKAGE, 0)
+        }.isSuccess
+
+        return if (installed) {
+            RuntimeStatus(
+                engineName = "Winlator • SevenX Bridge",
+                availability = RuntimeAvailability.READY,
+                message = "Winlator установлен. Запуск подтверждается отдельно."
+            )
+        } else {
+            RuntimeStatus(
+                engineName = "Winlator Runtime",
+                availability = RuntimeAvailability.NOT_INSTALLED,
+                message = "Установи сборку Winlator с поддержкой SevenX"
+            )
+        }
+    }
 
     override suspend fun launch(
         context: Context,
         executable: Uri
-    ): RuntimeLaunchResult = RuntimeLaunchResult.NOT_INSTALLED
+    ): RuntimeLaunchResult {
+        val sharedUri = runCatching {
+            if (executable.scheme == "file") {
+                val file = executable.path?.let(::File) ?: return RuntimeLaunchResult.FAILED
+                FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+            } else {
+                executable
+            }
+        }.getOrElse { return RuntimeLaunchResult.FAILED }
+
+        val callbackIntent = Intent(context, RuntimeLaunchReceiver::class.java).apply {
+            putExtra(RuntimeLaunchReceiver.EXTRA_SOURCE_URI, executable.toString())
+        }
+        val callbackFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+        val callback = PendingIntent.getBroadcast(
+            context,
+            executable.toString().hashCode(),
+            callbackIntent,
+            callbackFlags
+        )
+
+        val launchIntent = Intent(RuntimeLaunchReceiver.ACTION_RUN_EXE).apply {
+            setClassName(WINLATOR_PACKAGE, WINLATOR_BRIDGE)
+            setDataAndType(sharedUri, "application/octet-stream")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra("sevenx_callback", callback)
+        }
+
+        return runCatching {
+            context.startActivity(launchIntent)
+            RuntimeLaunchResult.LAUNCH_REQUESTED
+        }.getOrElse { error ->
+            if (error is PackageManager.NameNotFoundException) {
+                RuntimeLaunchResult.NOT_INSTALLED
+            } else {
+                RuntimeLaunchResult.FAILED
+            }
+        }
+    }
 }
