@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 /**
  * Result returned by the Windows execution backend.
@@ -42,18 +45,23 @@ internal interface WindowsRuntimeEngine {
 
     suspend fun launch(
         context: Context,
-        executable: Uri
+        executable: Uri,
+        launchProfile: String = "default",
+        compatibilityHints: String = "",
+        callbackToken: String? = null,
+        installArgs: String? = null
     ): RuntimeLaunchResult
 }
 
 /**
  * SevenX-to-Winlator bridge. The runtime receives a temporary read grant for
- * the imported EXE and a one-shot PendingIntent used only to confirm that its
- * Wine/Box64 launcher process was created.
+ * the imported EXE and a mutable PendingIntent used to correlate process-start
+ * and process-exit notifications from the Wine/Box64 launcher.
  */
 internal object WindowsRuntime : WindowsRuntimeEngine {
     private const val WINLATOR_PACKAGE = "com.winlator"
     private const val WINLATOR_BRIDGE = "com.winlator.SevenXBridgeActivity"
+    private const val START_TIMEOUT_MILLIS = 90_000L
 
     override fun status(context: Context): RuntimeStatus {
         val installed = runCatching {
@@ -80,7 +88,11 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
 
     override suspend fun launch(
         context: Context,
-        executable: Uri
+        executable: Uri,
+        launchProfile: String,
+        compatibilityHints: String,
+        callbackToken: String?,
+        installArgs: String?
     ): RuntimeLaunchResult {
         val sharedUri = runCatching {
             if (executable.scheme == "file") {
@@ -93,12 +105,13 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
 
         val callbackIntent = Intent(context, RuntimeLaunchReceiver::class.java).apply {
             putExtra(RuntimeLaunchReceiver.EXTRA_SOURCE_URI, executable.toString())
+            putExtra(RuntimeLaunchReceiver.EXTRA_CALLBACK_TOKEN, callbackToken.orEmpty())
         }
         val callbackFlags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val callback = PendingIntent.getBroadcast(
             context,
-            executable.toString().hashCode(),
+            callbackToken?.hashCode() ?: executable.toString().hashCode(),
             callbackIntent,
             callbackFlags
         )
@@ -108,6 +121,9 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             setDataAndType(sharedUri, "application/octet-stream")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra("sevenx_callback", callback)
+            putExtra("sevenx_profile", if (launchProfile == "compatibility") "compatibility" else "default")
+            putExtra("sevenx_compatibility_hints", compatibilityHints)
+            putExtra("sevenx_install_args", installArgs.orEmpty())
         }
 
         return runCatching {
@@ -119,6 +135,49 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             } else {
                 RuntimeLaunchResult.FAILED
             }
+        }
+    }
+
+    /**
+     * Waits for two distinct runtime events: first a confirmed Wine guest
+     * process start, then its exit. This prevents a stuck Winlator "Starting"
+     * screen from being mistaken for a running installer indefinitely.
+     */
+    suspend fun launchAndWait(
+        context: Context,
+        executable: Uri,
+        installArgs: String,
+        timeoutMillis: Long = 15 * 60 * 1000L
+    ): Int {
+        val token = UUID.randomUUID().toString()
+        val operation = RuntimeLaunchEvents.register(token)
+        try {
+            val launchResult = launch(
+                context = context,
+                executable = executable,
+                launchProfile = "compatibility",
+                compatibilityHints = "SevenX dependency installation",
+                callbackToken = token,
+                installArgs = installArgs
+            )
+            check(launchResult == RuntimeLaunchResult.LAUNCH_REQUESTED) {
+                when (launchResult) {
+                    RuntimeLaunchResult.NOT_INSTALLED -> "SevenX Desktop runtime is not installed"
+                    RuntimeLaunchResult.FAILED -> "Winlator could not start the installer"
+                    else -> "Unexpected runtime launch state"
+                }
+            }
+
+            val didStart = try {
+                withTimeout(START_TIMEOUT_MILLIS) { operation.started.await() }
+            } catch (_: TimeoutCancellationException) {
+                throw RuntimeStartTimeoutException()
+            }
+            check(didStart) { "Winlator отклонил запуск Windows-процесса. Проверь контейнер и журнал Winlator." }
+
+            return withTimeout(timeoutMillis) { operation.completed.await() }
+        } finally {
+            RuntimeLaunchEvents.unregister(token, operation)
         }
     }
 }

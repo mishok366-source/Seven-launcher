@@ -2,6 +2,7 @@ package com.seven.gamehub
 
 import android.net.Uri
 import android.content.Context
+import android.app.DownloadManager
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ShortcutInfo
@@ -9,6 +10,7 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.Build
+import android.os.Environment
 import java.io.File
 import java.util.UUID
 import java.util.Date
@@ -83,12 +85,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.seven.gamehub.runtime.RuntimeLaunchResult
+import com.seven.gamehub.runtime.RuntimeStartTimeoutException
 import com.seven.gamehub.runtime.WindowsRuntime
 import com.seven.gamehub.runtime.RuntimeDiagnostics
+import com.seven.gamehub.DependencyInstaller
 
 private val Background = Color(0xFF090B12)
 private val Panel = Color(0xFF141925)
@@ -102,7 +108,9 @@ private data class GameEntry(
     val isInstaller: Boolean = false,
     val isFavorite: Boolean = false,
     val launchCount: Int = 0,
-    val lastLaunchedAt: Long = 0L
+    val lastLaunchedAt: Long = 0L,
+    val launchProfile: String = "default",
+    val compatibilityHints: String = ""
 )
 
 private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
@@ -114,6 +122,7 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
         putExtra("sevenx_game_uri", game.uri.toString())
         putExtra("sevenx_game_name", game.name)
         putExtra("sevenx_game_is_installer", game.isInstaller)
+        putExtra("sevenx_game_profile", game.launchProfile)
         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
     val shortcut = ShortcutInfo.Builder(context, "sevenx_" + game.uri.toString().hashCode())
@@ -127,7 +136,55 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
 
 private const val PREFS_NAME = "seven_gamehub_library"
 
+private data class DependencyDownload(val title: String, val url: String, val fileName: String)
+
+private val sevenXDependencyDownloads = listOf(
+    DependencyDownload("Visual C++ v14 x86", "https://aka.ms/vc14/vc_redist.x86.exe", "SevenX_vc_redist_x86.exe"),
+    DependencyDownload("Visual C++ v14 x64", "https://aka.ms/vc14/vc_redist.x64.exe", "SevenX_vc_redist_x64.exe"),
+    DependencyDownload("Visual C++ 2013 x86", "https://aka.ms/highdpimfc2013x86enu", "SevenX_vcredist2013_x86.exe"),
+    DependencyDownload("Visual C++ 2013 x64", "https://aka.ms/highdpimfc2013x64enu", "SevenX_vcredist2013_x64.exe"),
+    DependencyDownload("Wine Mono 11.3 x86", "https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.3.0/wine-mono-11.3.0-x86.msi", "SevenX_wine-mono-11.3.0-x86.msi"),
+    DependencyDownload("Wine Mono 11.3 ARM64", "https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.3.0/wine-mono-11.3.0-arm64.msi", "SevenX_wine-mono-11.3.0-arm64.msi"),
+    DependencyDownload(".NET Desktop Runtime 10 x86", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-x86.exe", "SevenX_windowsdesktop-runtime-10-x86.exe"),
+    DependencyDownload(".NET Desktop Runtime 10 x64", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-x64.exe", "SevenX_windowsdesktop-runtime-10-x64.exe"),
+    DependencyDownload(".NET Desktop Runtime 10 ARM64", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-arm64.exe", "SevenX_windowsdesktop-runtime-10-arm64.exe"),
+    DependencyDownload(".NET Framework 4.8 offline", "https://download.microsoft.com/download/f/3/a/f3a6af84-da23-40a5-8d1c-49cc10c8e76f/NDP48-x86-x64-AllOS-ENU.exe", "SevenX_NDP48_offline.exe"),
+    DependencyDownload("WebView2 Evergreen Bootstrapper", "https://aka.ms/MicrosoftEdgeWebview2Setup.exe", "SevenX_WebView2Setup.exe")
+)
+
+private fun enqueueOfficialDependencyDownload(context: Context, title: String, url: String, fileName: String): Long {
+    val uri = Uri.parse(url)
+    val allowed = uri.scheme == "https" && when (uri.host?.lowercase()) {
+        "aka.ms", "go.microsoft.com", "builds.dotnet.microsoft.com", "download.microsoft.com" -> true
+        "github.com" -> uri.path.orEmpty().startsWith("/wine-mono/wine-mono/releases/download/")
+        else -> false
+    }
+    require(allowed) { "Dependency URL is not on the SevenX official-source allowlist" }
+    val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    val request = DownloadManager.Request(uri)
+        .setTitle(title)
+        .setDescription("Пакет совместимости • SevenX")
+        .setMimeType("application/octet-stream")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setAllowedOverMetered(true)
+        .setAllowedOverRoaming(false)
+        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+    return manager.enqueue(request)
+}
+
+private fun enqueueAllDependencyDownloads(context: Context): Int {
+    var queued = 0
+    sevenXDependencyDownloads.forEach { dependency ->
+        runCatching {
+            enqueueOfficialDependencyDownload(context, dependency.title, dependency.url, dependency.fileName)
+        }.onSuccess { queued++ }
+    }
+    return queued
+}
+
 private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
+private fun isMsiName(name: String): Boolean = name.trim().lowercase().endsWith(".msi")
+private fun isSupportedWindowsInstaller(name: String): Boolean = isExeName(name) || isMsiName(name)
 
 // Installer entries are removed from the SevenX library only after the runtime
 // confirms that Windows successfully started the installer. The imported file
@@ -204,7 +261,26 @@ private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
     }.getOrDefault(false)
 }
 
-private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = withContext(Dispatchers.IO) {
+private fun hasMsiDatabaseSignature(context: Context, uri: Uri): Boolean {
+    val expected = byteArrayOf(
+        0xD0.toByte(), 0xCF.toByte(), 0x11.toByte(), 0xE0.toByte(),
+        0xA1.toByte(), 0xB1.toByte(), 0x1A.toByte(), 0xE1.toByte()
+    )
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val actual = ByteArray(expected.size)
+            var offset = 0
+            while (offset < actual.size) {
+                val count = input.read(actual, offset, actual.size - offset)
+                if (count < 0) return@use false
+                offset += count
+            }
+            actual.contentEquals(expected)
+        } ?: false
+    }.getOrDefault(false)
+}
+
+private suspend fun importExternalWindowsFile(context: Context, uri: Uri): GameEntry? = withContext(Dispatchers.IO) {
     runCatching {
         val displayName = context.contentResolver.query(
             uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
@@ -212,8 +288,9 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
             if (cursor.moveToFirst()) cursor.getString(0) else null
         } ?: uri.lastPathSegment ?: "Windows-app.exe"
 
-        if (!isExeName(displayName)) return@withContext null
-        if (!hasPortableExecutableHeader(context, uri)) return@withContext null
+        if (!isSupportedWindowsInstaller(displayName)) return@withContext null
+        val validFile = if (isMsiName(displayName)) hasMsiDatabaseSignature(context, uri) else hasPortableExecutableHeader(context, uri)
+        if (!validFile) return@withContext null
 
         val importDir = File(context.filesDir, "exe-imports").apply { mkdirs() }
         val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100)
@@ -221,7 +298,8 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isInstallerFile(context, uri, displayName))
+        val hints = if (isMsiName(displayName)) "MSI installer • dependencies inspected after installation" else WindowsDependencyAnalyzer.analyze(destination)
+        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isMsiName(displayName) || isInstallerFile(context, uri, displayName), compatibilityHints = hints)
     }.getOrNull()
 }
 
@@ -248,7 +326,9 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                         item.optBoolean("isInstaller", false),
                         item.optBoolean("isFavorite", false),
                         item.optInt("launchCount", 0),
-                        item.optLong("lastLaunchedAt", 0L)
+                        item.optLong("lastLaunchedAt", 0L),
+                        item.optString("launchProfile", "default"),
+                        item.optString("compatibilityHints", "")
                     ))
                 }
             }
@@ -265,7 +345,9 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
             .put("isInstaller", game.isInstaller)
             .put("isFavorite", game.isFavorite)
             .put("launchCount", game.launchCount)
-            .put("lastLaunchedAt", game.lastLaunchedAt))
+            .put("lastLaunchedAt", game.lastLaunchedAt)
+            .put("launchProfile", game.launchProfile)
+            .put("compatibilityHints", game.compatibilityHints))
     }
     context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit().putString(PREFS_GAMES, array.toString()).apply()
@@ -356,7 +438,7 @@ private fun SevenGameHubApp(
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                when (WindowsRuntime.launch(context, targetGame.uri)) {
+                when (WindowsRuntime.launch(context, targetGame.uri, targetGame.launchProfile, targetGame.compatibilityHints)) {
                     RuntimeLaunchResult.STARTED -> snackbar.showSnackbar("${targetGame.name} запущен")
                     RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
                         "${targetGame.name} передан в Winlator. Ждём подтверждения запуска."
@@ -378,7 +460,7 @@ private fun SevenGameHubApp(
     LaunchedEffect(incomingExeUri) {
         val uriString = incomingExeUri ?: return@LaunchedEffect
         selectedTab = 0
-        val imported = importExternalExe(context, Uri.parse(uriString))
+        val imported = importExternalWindowsFile(context, Uri.parse(uriString))
         if (imported != null) {
             val existing = games.firstOrNull { it.name == imported.name }
             if (existing == null) games = games + imported
@@ -386,7 +468,7 @@ private fun SevenGameHubApp(
                 if (existing == null) "${imported.name} импортирован в SevenX" else "${imported.name} уже есть в библиотеке"
             )
         } else {
-            snackbar.showSnackbar("Не удалось открыть файл. Нужен корректный EXE с расширением .exe.")
+            snackbar.showSnackbar("Не удалось открыть файл. Нужен корректный Windows EXE или MSI.")
         }
         onIncomingExeHandled()
     }
@@ -406,10 +488,11 @@ private fun SevenGameHubApp(
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: uri.lastPathSegment ?: "Windows game.exe"
 
-            if (!isExeName(name) || !hasPortableExecutableHeader(context, uri)) {
-                scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE-файл") }
+            val validFile = if (isMsiName(name)) hasMsiDatabaseSignature(context, uri) else isExeName(name) && hasPortableExecutableHeader(context, uri)
+            if (!isSupportedWindowsInstaller(name) || !validFile) {
+                scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE или MSI-файл") }
             } else {
-                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isInstallerFile(context, uri, name))
+                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isMsiName(name) || isInstallerFile(context, uri, name), compatibilityHints = if (isMsiName(name)) "MSI installer • inspect installed application after setup" else WindowsDependencyAnalyzer.analyze(context, uri))
                 scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
             }
         }
@@ -438,6 +521,11 @@ private fun SevenGameHubApp(
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2, onClick = { selectedTab = 2 },
+                        icon = { androidx.compose.material3.Icon(Icons.Rounded.Info, null) },
+                        label = { Text("Совместимость") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 3, onClick = { selectedTab = 3 },
                         icon = { androidx.compose.material3.Icon(Icons.Rounded.Tune, null) },
                         label = { Text("Настройки") }
                     )
@@ -452,6 +540,9 @@ private fun SevenGameHubApp(
                     onToggleFavorite = { game ->
                         games = games.map { if (it.uri == game.uri) it.copy(isFavorite = !it.isFavorite) else it }
                     },
+                    onCycleProfile = { game ->
+                        games = games.map { if (it.uri == game.uri) it.copy(launchProfile = if (it.launchProfile == "compatibility") "default" else "compatibility") else it }
+                    },
                     onPinShortcut = { game ->
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
@@ -461,7 +552,7 @@ private fun SevenGameHubApp(
                     },
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game.uri)) {
+                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile, game.compatibilityHints)) {
                                 RuntimeLaunchResult.STARTED -> {
                                     if (game.isInstaller) {
                                         // Remove only the library entry. Do not delete game.uri or its file.
@@ -490,7 +581,7 @@ private fun SevenGameHubApp(
                     games = games,
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game.uri)) {
+                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile)) {
                                 RuntimeLaunchResult.STARTED, RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar("${game.name} передан в Winlator")
                                 RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar("Winlator с поддержкой SevenX не установлен")
                                 RuntimeLaunchResult.FAILED -> snackbar.showSnackbar("Не удалось запустить ${game.name}")
@@ -500,6 +591,44 @@ private fun SevenGameHubApp(
                     onPinShortcut = { game ->
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
+                    },
+                    modifier = Modifier.padding(padding)
+                )
+            } else if (selectedTab == 2) {
+                CompatibilityScreen(
+                    onImportInstaller = { selectedTab = 0; pickerIsInstaller = true; exePicker.launch(arrayOf("*/*")) },
+                    onDownloadQueued = { title ->
+                        scope.launch { snackbar.showSnackbar("$title: загрузка началась. После завершения импортируй файл в SevenX.") }
+                    },
+                    onInstallAll = {
+                        scope.launch {
+                            try {
+                                val summary = DependencyInstaller.downloadAndInstall(context) { message ->
+                                    snackbar.currentSnackbarData?.dismiss()
+                                    scope.launch {
+                                        snackbar.showSnackbar(message, withDismissAction = true)
+                                    }
+                                }
+                                snackbar.showSnackbar(summary, withDismissAction = true)
+                            } catch (error: Exception) {
+                                if (error is CancellationException &&
+                                    error !is TimeoutCancellationException &&
+                                    error !is RuntimeStartTimeoutException
+                                ) throw error
+                                val reason = when (error) {
+                                    is RuntimeStartTimeoutException ->
+                                        "Winlator не запустил Windows-процесс за 90 секунд; очередь остановлена"
+                                    is TimeoutCancellationException ->
+                                        "установщик не завершился за 15 минут; остановил очередь, чтобы не запускать следующий пакет параллельно"
+                                    else ->
+                                    error.message ?: "неизвестная ошибка"
+                                }
+                                snackbar.showSnackbar(
+                                    "Автоустановка остановлена: $reason",
+                                    withDismissAction = true
+                                )
+                            }
+                        }
                     },
                     modifier = Modifier.padding(padding)
                 )
@@ -517,6 +646,7 @@ private fun LibraryScreen(
     onAddSetup: () -> Unit,
     onPinShortcut: (GameEntry) -> Unit,
     onToggleFavorite: (GameEntry) -> Unit,
+    onCycleProfile: (GameEntry) -> Unit,
     onRemove: (GameEntry) -> Unit,
     onRun: (GameEntry) -> Unit,
     modifier: Modifier = Modifier
@@ -574,7 +704,7 @@ private fun LibraryScreen(
                 Spacer(Modifier.height(17.dp))
                 Text("Твой ПК.\nТеперь в кармане.", color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
-                Text("Библиотека EXE, ярлыки и запуск через Winlator. Совместимость зависит от игры и устройства.",
+                Text("Библиотека EXE/MSI, ярлыки и запуск через Winlator. Совместимость зависит от приложения и устройства.",
                     color = Color(0xFFB5BED0), fontSize = 13.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(18.dp))
                 Button(
@@ -584,7 +714,7 @@ private fun LibraryScreen(
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить EXE", fontWeight = FontWeight.Bold)
+                    Text("Добавить EXE / MSI", fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(9.dp))
                 OutlinedButton(
@@ -594,7 +724,7 @@ private fun LibraryScreen(
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить SETUP / установщик")
+                    Text("Добавить установщик EXE / MSI")
                 }
             }
         }
@@ -629,7 +759,7 @@ private fun LibraryScreen(
                     Spacer(Modifier.height(14.dp))
                     Text("Здесь пока пусто", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Spacer(Modifier.height(6.dp))
-                    Text("Выбери EXE-файл, чтобы добавить\nпервую игру в библиотеку", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+                    Text("Выбери EXE или MSI-файл, чтобы добавить\nпервое приложение в библиотеку", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
                     Spacer(Modifier.height(17.dp))
                     OutlinedButton(onClick = onAdd, shape = RoundedCornerShape(13.dp)) {
                         androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null, modifier = Modifier.size(17.dp))
@@ -645,6 +775,7 @@ private fun LibraryScreen(
                     onRun = { onRun(game) },
                     onPinShortcut = { onPinShortcut(game) },
                     onToggleFavorite = { onToggleFavorite(game) },
+                    onCycleProfile = { onCycleProfile(game) },
                     onRemove = { onRemove(game) }
                 )
             }
@@ -653,7 +784,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.12.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.13.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
             }
         }
     }
@@ -665,36 +796,47 @@ private fun GameCard(
     onRun: () -> Unit,
     onPinShortcut: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onCycleProfile: () -> Unit,
     onRemove: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
-            .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp)
     ) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF292440)), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(Icons.Rounded.Gamepad, null, tint = Accent, modifier = Modifier.size(25.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF292440)), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(Icons.Rounded.Gamepad, null, tint = Accent, modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
+                if (game.compatibilityHints.isNotBlank()) {
+                    Text(game.compatibilityHints.substringBefore("[SEVENX_COMPONENTS:").trim(), color = AccentBlue, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
+                androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
-        }
-        OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
-            androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
-        }
-        IconButton(onClick = onToggleFavorite) {
-            androidx.compose.material3.Icon(
-                if (game.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                "Избранное", tint = if (game.isFavorite) Color(0xFFFFD166) else Muted
-            )
-        }
-        IconButton(onClick = onPinShortcut) {
-            androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
-        }
-        IconButton(onClick = onRemove) {
-            androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = onCycleProfile, shape = RoundedCornerShape(9.dp), modifier = Modifier.weight(1f)) {
+                Text(if (game.launchProfile == "compatibility") "Профиль: совместимость" else "Профиль: стандарт", fontSize = 10.sp)
+            }
+            IconButton(onClick = onToggleFavorite) {
+                androidx.compose.material3.Icon(
+                    if (game.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                    "Избранное", tint = if (game.isFavorite) Color(0xFFFFD166) else Muted
+                )
+            }
+            IconButton(onClick = onPinShortcut) {
+                androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
+            }
+            IconButton(onClick = onRemove) {
+                androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
+            }
         }
     }
 }
@@ -745,6 +887,229 @@ private fun HistoryScreen(
     }
 }
 
+
+@Composable
+private fun CompatibilityScreen(
+    onImportInstaller: () -> Unit,
+    onDownloadQueued: (String) -> Unit,
+    onInstallAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    fun openOfficialPage(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Column(modifier = Modifier.padding(top = 18.dp, bottom = 4.dp)) {
+                Text("Центр совместимости", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text("Официальные установщики зависимостей для выбранного Wine-контейнера",
+                    color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+            }
+        }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Panel).border(1.dp, Color(0xFF514477), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Text("Полный набор зависимостей", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Spacer(Modifier.height(5.dp))
+                Text("SevenX скачает пакеты во внутреннюю папку приложения и по очереди запустит установщики в активном Wine-контейнере. Для каждого пакета будет дождаться завершения процесса; несовместимые пакеты будут отмечены отдельно.",
+                    color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = onInstallAll,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF514477))
+                ) {
+                    Text("Скачать и установить ВСЁ автоматически")
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val queued = enqueueAllDependencyDownloads(context)
+                        onDownloadQueued("В очереди $queued из 11 пакетов")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF514477))
+                ) {
+                    Text("Скачать ВСЁ (11 файлов)")
+                }
+            }
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ v14 (2017–2026; совместим с приложениями 2015+)",
+                description = "Общий актуальный runtime для приложений Visual Studio 2015 и новее. Выбирай x86 для 32-битных программ, x64 для 64-битных.",
+                actions = listOf("Страница Microsoft" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
+                downloads = listOf(
+                    Triple("Скачать x86 прямо в SevenX", "https://aka.ms/vc14/vc_redist.x86.exe", "vc_redist.x86.exe"),
+                    Triple("Скачать x64 прямо в SevenX", "https://aka.ms/vc14/vc_redist.x64.exe", "vc_redist.x64.exe")
+                ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage(url) }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ 2013",
+                description = "Отдельный runtime; не заменяется пакетом v14. x86 и x64 устанавливаются рядом при необходимости.",
+                actions = listOf("Страница Microsoft" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
+                downloads = listOf(
+                    Triple("Скачать x86 прямо в SevenX", "https://aka.ms/highdpimfc2013x86enu", "vcredist2013_x86.exe"),
+                    Triple("Скачать x64 прямо в SevenX", "https://aka.ms/highdpimfc2013x64enu", "vcredist2013_x64.exe")
+                ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage(url) }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ 2005–2012 и архивные версии",
+                description = "Официальная документация Microsoft со ссылками на старые Redistributable. Некоторые версии сняты с поддержки.",
+                actions = listOf("Открыть Microsoft Learn" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Wine Mono",
+                description = "Скачиваются MSI Wine Mono 11.3 для x86 и ARM64. Это Wine-реализация .NET Framework, а не Microsoft .NET Desktop Runtime.",
+                actions = listOf("Релизы Wine Mono" to "https://github.com/wine-mono/wine-mono/releases"),
+                downloads = listOf(
+                    Triple("Скачать Wine Mono x86", sevenXDependencyDownloads[4].url, sevenXDependencyDownloads[4].fileName),
+                    Triple("Скачать Wine Mono ARM64", sevenXDependencyDownloads[5].url, sevenXDependencyDownloads[5].fileName)
+                ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://github.com/wine-mono/wine-mono/releases") }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Microsoft .NET Framework",
+                description = "В набор включён автономный установщик .NET Framework 4.8 x86/x64. Более старые ветки .NET Framework не входят в этот пакет.",
+                actions = listOf("Официальные загрузки .NET Framework" to "https://dotnet.microsoft.com/en-us/download/dotnet-framework"),
+                downloads = listOf(Triple("Скачать .NET Framework 4.8 offline", sevenXDependencyDownloads[9].url, sevenXDependencyDownloads[9].fileName)),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://dotnet.microsoft.com/en-us/download/dotnet-framework") }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Современный .NET Desktop Runtime",
+                description = ".NET Desktop Runtime 10.0.15 для x86, x64 и ARM64. Это отдельная линейка, не замена .NET Framework; запуск под Wine требует проверки.",
+                actions = listOf("Официальные загрузки .NET" to "https://dotnet.microsoft.com/en-us/download/dotnet"),
+                downloads = (6..8).map { index ->
+                    Triple("Скачать " + sevenXDependencyDownloads[index].title, sevenXDependencyDownloads[index].url, sevenXDependencyDownloads[index].fileName)
+                },
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://dotnet.microsoft.com/en-us/download/dotnet") }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Microsoft Edge WebView2",
+                description = "В набор включён официальный Evergreen Bootstrapper. Он небольшой и скачивает сам Runtime с серверов Microsoft при запуске установщика; офлайн standalone runtime пока не включён.",
+                actions = listOf("Официальная страница WebView2" to "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"),
+                downloads = listOf(Triple("Скачать WebView2 Bootstrapper", sevenXDependencyDownloads[10].url, sevenXDependencyDownloads[10].fileName)),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://developer.microsoft.com/en-us/microsoft-edge/webview2/") }
+                },
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Графика и Wine-компоненты",
+                description = "Box64, Turnip, DXVK, VKD3D-Proton, WineD3D и WinComponents настраиваются в SevenX Desktop. Выбор зависит от GPU, драйвера и конкретной игры.",
+                actions = listOf("Документация Winlator" to "https://github.com/brunodev85/winlator"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Panel).border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Text("Как установить зависимость", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("1. Нажми «Скачать ВСЁ» или выбери отдельные пакеты — загрузка пойдёт через Android Download Manager.\n2. После завершения импортируй нужные EXE/MSI из папки Downloads.\n3. Запусти установщик в том же Wine-контейнере, где работает приложение.",
+                    color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = onImportInstaller, modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Импортировать скачанный EXE / MSI")
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("SevenX скачивает все перечисленные пакеты в Downloads, но не запускает их автоматически. Это набор установщиков разных архитектур и поколений: устанавливай нужные варианты по требованию программы. Совместимость .NET и WebView2 с Wine не гарантируется.",
+                    color = Color(0xFFFFD28A), fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@Composable
+private fun CompatibilityPackCard(
+    title: String,
+    description: String,
+    actions: List<Pair<String, String>>,
+    downloads: List<Triple<String, String, String>> = emptyList(),
+    onDownload: (String, String, String) -> Unit = { _, _, _ -> },
+    onOpen: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Panel).border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(description, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        Spacer(Modifier.height(9.dp))
+        downloads.forEach { action ->
+            Button(onClick = { onDownload(action.first, action.second, action.third) }, modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF39305F))) {
+                Text(action.first, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        actions.forEach { action ->
+            OutlinedButton(onClick = { onOpen(action.second) }, modifier = Modifier.fillMaxWidth()) {
+                Text(action.first, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -760,12 +1125,22 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Настройки SevenX", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Библиотека, ярлыки и профили отдельных игр", color = Muted, fontSize = 14.sp)
-        SettingsCard("Библиотека", "Импорт EXE/SETUP и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
+        SettingsCard("Библиотека", "Импорт EXE/MSI и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
         SettingsCard("Профили игр", "Индивидуальные параметры запуска для каждой игры", Icons.Rounded.Tune, "В РАЗРАБОТКЕ")
         SettingsCard("Ярлыки", "Быстрый запуск игр с рабочего стола Android", Icons.Rounded.Gamepad, "АКТИВНО")
         Spacer(Modifier.height(4.dp))
         SettingsCard("SevenX Desktop", runtimeStatus.message, Icons.Rounded.Settings, runtimeLabel)
-        Text("Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop. SevenX отвечает только за библиотеку и игровые профили.",
+        SettingsCard(
+            "Диагностика устройства",
+            diagnostics.summary,
+            Icons.Rounded.Settings,
+            if (diagnostics.supportsArm64 && diagnostics.hasVulkan) "ОБНАРУЖЕНО" else "ОГРАНИЧЕНО"
+        )
+        Text(
+            "ABI: ${diagnostics.primaryAbi} • Vulkan HW: ${diagnostics.vulkanVersion?.toString() ?: "не обнаружен"} • уровень: ${diagnostics.vulkanLevel?.toString() ?: "нет данных"}",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+        )
+        Text("Эти данные описывают возможности Android-устройства, но не гарантируют совместимость конкретной Windows-программы. Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }

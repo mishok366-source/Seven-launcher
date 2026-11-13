@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <files-path name="exe_imports" path="exe-imports/" />
+    <files-path name="compatibility_installers" path="compatibility-installers/" />
 </paths>

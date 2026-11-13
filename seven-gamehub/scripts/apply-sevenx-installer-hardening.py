@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harden the SevenX 0.10.0 EXE hand-off after the base Winlator bridge patch."""
+"""Harden the SevenX EXE/MSI hand-off after the base Winlator bridge patch."""
 from pathlib import Path
 import sys
 
@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
+import org.json.JSONObject;
 
 public class SevenXBridgeActivity extends Activity {
     private static final int CONTRACT_VERSION = 1;
@@ -63,9 +64,11 @@ public class SevenXBridgeActivity extends Activity {
             return;
         }
 
+        ContainerManager containerManager;
         ArrayList<Container> containers;
         try {
-            containers = new ContainerManager(this).getContainers();
+            containerManager = new ContainerManager(this);
+            containers = containerManager.getContainers();
         }
         catch (Exception error) {
             finishWithError("Не удалось прочитать список Wine-контейнеров");
@@ -73,31 +76,50 @@ public class SevenXBridgeActivity extends Activity {
         }
 
         if (containers == null || containers.isEmpty()) {
-            finishWithError("Контейнеров нет. Сначала создай контейнер в SevenX Desktop");
+            // First-run path: create a default Winlator prefix automatically.
+            // ContainerManager extracts the bundled Wine container pattern on
+            // its worker thread and reports completion on the main thread.
+            containerManager.createContainerAsync(new JSONObject(), (createdContainer) -> {
+                if (createdContainer == null) {
+                    finishWithError("Не удалось автоматически создать Wine-контейнер. Проверь свободное место и повтори запуск");
+                    return;
+                }
+                try {
+                    containerManager.activateContainer(createdContainer);
+                    if (desktopRequest) startDesktop(createdContainer);
+                    else launchInContainer(source, createdContainer);
+                }
+                catch (Exception error) {
+                    finishWithError("Не удалось подготовить новый Wine-контейнер: " + safeMessage(error));
+                }
+            });
             return;
         }
 
-        String[] labels = new String[containers.size()];
-        for (int i = 0; i < containers.size(); i++) {
-            Container container = containers.get(i);
-            labels[i] = container.getName() + "  (#" + container.id + ")";
+        // Reuse Winlator's currently active container automatically. If no active
+        // symlink can be resolved, use the first available container and activate it.
+        Container selectedContainer = containers.get(0);
+        File activeContainerLink = new File(selectedContainer.getRootDir().getParentFile(), "user");
+        try {
+            File activeContainer = activeContainerLink.getCanonicalFile();
+            for (Container candidate : containers) {
+                if (candidate.getRootDir().getCanonicalFile().equals(activeContainer)) {
+                    selectedContainer = candidate;
+                    break;
+                }
+            }
+        }
+        catch (IOException ignored) {
         }
 
-        new AlertDialog.Builder(this)
-            .setTitle("Выбери Wine-контейнер")
-            .setItems(labels, (dialog, which) -> {
-                if (which < 0 || which >= containers.size()) {
-                    finishWithError("Контейнер не выбран");
-                }
-                else if (desktopRequest) {
-                    startDesktop(containers.get(which));
-                }
-                else {
-                    launchInContainer(source, containers.get(which));
-                }
-            })
-            .setOnCancelListener(dialog -> finishWithError("Выбор контейнера отменён"))
-            .show();
+        try {
+            containerManager.activateContainer(selectedContainer);
+            if (desktopRequest) startDesktop(selectedContainer);
+            else launchInContainer(source, selectedContainer);
+        }
+        catch (Exception error) {
+            finishWithError("Не удалось выбрать Wine-контейнер: " + safeMessage(error));
+        }
     }
 
     private PendingIntent getSevenXCallback() {
@@ -112,6 +134,8 @@ public class SevenXBridgeActivity extends Activity {
         result.putExtra("sevenx_started", started);
         result.putExtra("sevenx_pid", pid);
         result.putExtra("sevenx_error", message == null ? "" : message);
+        result.putExtra("sevenx_process_finished", true);
+        result.putExtra("sevenx_exit_code", -1);
         try {
             callback.send(this, 0, result);
         }
@@ -132,14 +156,61 @@ public class SevenXBridgeActivity extends Activity {
         }
     }
 
+    private String enableWinComponent(String config, String component) {
+        String source = config == null ? "" : config;
+        StringBuilder updated = new StringBuilder();
+        boolean found = false;
+        for (String rawEntry : source.split(",")) {
+            String entry = rawEntry.trim();
+            int separator = entry.indexOf('=');
+            if (separator > 0 && entry.substring(0, separator).trim().equals(component)) {
+                entry = component + "=1";
+                found = true;
+            }
+            if (updated.length() > 0) updated.append(",");
+            if (!entry.isEmpty()) updated.append(entry);
+        }
+        if (!found) {
+            if (updated.length() > 0) updated.append(",");
+            updated.append(component).append("=1");
+        }
+        return updated.toString();
+    }
+
+    private void prepareBundledDependencies(Container container, String compatibilityHints) {
+        String current = container.getWinComponents();
+        if (current == null) current = "";
+
+        // These two runtimes are bundled in this exact pinned Winlator source.
+        String updated = enableWinComponent(current, "vcrun2005");
+        updated = enableWinComponent(updated, "vcrun2010");
+
+        // Optional components are enabled per prefix only when static PE imports request them.
+        if (compatibilityHints != null && compatibilityHints.contains("[SEVENX_COMPONENTS:")) {
+            if (compatibilityHints.contains("directshow")) updated = enableWinComponent(updated, "directshow");
+            if (compatibilityHints.contains("directplay")) updated = enableWinComponent(updated, "directplay");
+        }
+
+        if (!updated.equals(current)) {
+            container.setWinComponents(updated);
+            container.saveData();
+        }
+    }
+
     private void launchInContainer(Uri source, Container container) {
         File temporary = null;
         File destination = null;
         try {
+            prepareBundledDependencies(container, getIntent().getStringExtra("sevenx_compatibility_hints"));
             String displayName = queryDisplayName(source);
-            if (displayName == null || displayName.trim().isEmpty() ||
-                !displayName.toLowerCase(Locale.ROOT).endsWith(".exe")) {
-                throw new IllegalArgumentException("Поддерживаются только Windows EXE-установщики");
+            if (displayName == null || displayName.trim().isEmpty()) {
+                throw new IllegalArgumentException("Не удалось определить имя Windows-файла");
+            }
+            String lowerName = displayName.toLowerCase(Locale.ROOT);
+            boolean isExe = lowerName.endsWith(".exe");
+            boolean isMsi = lowerName.endsWith(".msi");
+            if (!isExe && !isMsi) {
+                throw new IllegalArgumentException("Поддерживаются Windows EXE и MSI");
             }
 
             String safeName = displayName.replaceAll("[^A-Za-z0-9._-]", "_");
@@ -182,8 +253,10 @@ public class SevenXBridgeActivity extends Activity {
             displayIntent.putExtra("container_id", container.id);
             displayIntent.putExtra("exec_path", destination.getAbsolutePath());
             displayIntent.putExtra("sevenx_callback", getSevenXCallback());
+            displayIntent.putExtra("sevenx_profile", getIntent().getStringExtra("sevenx_profile"));
             displayIntent.putExtra("sevenx_source_uri", source.toString());
             displayIntent.putExtra("sevenx_contract_version", CONTRACT_VERSION);
+            displayIntent.putExtra("sevenx_install_args", getIntent().getStringExtra("sevenx_install_args"));
             startActivity(displayIntent);
             finish();
         }
@@ -289,6 +362,50 @@ replace_once(
     '                preferences.edit().remove("runtime_last_result_uri").remove("runtime_last_result_started").apply()\n',
     '                preferences.edit().remove("runtime_last_result_uri")\n'
     '                    .remove("runtime_last_result_started").remove("runtime_last_result_error").apply()\n'
+)
+
+
+# Carry silent-install arguments through the existing Winlator launcher.
+replace_once(
+    display,
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\\\windows \\"wfm.exe\\"";',
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\\\windows \\"wfm.exe\\"";\n'
+    '        String sevenxInstallArgs = getIntent().getStringExtra("sevenx_install_args");\n'
+    '        if (sevenxInstallArgs != null && !sevenxInstallArgs.trim().isEmpty()) cmdArgs += " " + sevenxInstallArgs.trim();'
+)
+
+# SevenX-launched sessions return to the calling Game Manager instead of
+# invoking Winlator's normal restart path (which opens wfm.exe in the EXE folder).
+# Sessions started inside Winlator retain the original restart behavior.
+replace_once(
+    display,
+    """    private void exit() {
+        winHandler.stop();""",
+    """    private void exit() {
+        if (getIntent().hasExtra("sevenx_contract_version") ||
+            getIntent().getBooleanExtra("sevenx_desktop_mode", false)) {
+            ForegroundService.stopSession(this);
+            finish();
+            return;
+        }
+        winHandler.stop();"""
+)
+
+# Report the actual Wine process exit code, not merely that it was created.
+replace_once(
+    display,
+    '        guestProgramLauncherComponent.setTerminationCallback((status) -> exit());',
+    '        guestProgramLauncherComponent.setTerminationCallback((status) -> {\n'
+    '            PendingIntent callback = (PendingIntent)getIntent().getParcelableExtra("sevenx_callback");\n'
+    '            if (callback != null) {\n'
+    '                Intent result = new Intent();\n'
+    '                result.putExtra("sevenx_process_finished", true);\n'
+    '                result.putExtra("sevenx_exit_code", status);\n'
+    '                try { callback.send(this, 0, result); }\n'
+    '                catch (PendingIntent.CanceledException ignored) {}\n'
+    '            }\n'
+    '            exit();\n'
+    '        });'
 )
 
 print("SevenX 0.10.0 installer bridge hardening applied.")
