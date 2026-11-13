@@ -248,6 +248,13 @@ public class SevenXBridgeActivity extends Activity {
 """, encoding="utf-8")
 
 
+build_gradle = root / "app/build.gradle"
+replace_once(
+    build_gradle,
+    '        versionCode 33\\n        versionName "11.2"',
+    '        versionCode 34\\n        versionName "0.9.0"'
+)
+
 # Add a dedicated SevenX component manager to the Winlator navigation drawer.
 replace_once(
     menu,
