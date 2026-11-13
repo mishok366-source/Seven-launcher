@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
+import org.json.JSONObject;
 
 public class SevenXBridgeActivity extends Activity {
     private static final int CONTRACT_VERSION = 1;
@@ -75,7 +76,23 @@ public class SevenXBridgeActivity extends Activity {
         }
 
         if (containers == null || containers.isEmpty()) {
-            finishWithError("Контейнеров нет. Сначала создай контейнер в SevenX Desktop");
+            // First-run path: create a default Winlator prefix automatically.
+            // ContainerManager extracts the bundled Wine container pattern on
+            // its worker thread and reports completion on the main thread.
+            containerManager.createContainerAsync(new JSONObject(), (createdContainer) -> {
+                if (createdContainer == null) {
+                    finishWithError("Не удалось автоматически создать Wine-контейнер. Проверь свободное место и повтори запуск");
+                    return;
+                }
+                try {
+                    containerManager.activateContainer(createdContainer);
+                    if (desktopRequest) startDesktop(createdContainer);
+                    else launchInContainer(source, createdContainer);
+                }
+                catch (Exception error) {
+                    finishWithError("Не удалось подготовить новый Wine-контейнер: " + safeMessage(error));
+                }
+            });
             return;
         }
 
