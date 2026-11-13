@@ -137,10 +137,27 @@ public class SevenXBridgeActivity extends Activity {
         }
     }
 
+    private void prepareBundledDependencies(Container container) {
+        String current = container.getWinComponents();
+        if (current == null) return;
+
+        // These two redistributables are shipped as native WinComponents by
+        // this Winlator build. Enable them in the selected prefix so Winlator
+        // extracts and registers them during its normal startup path.
+        String updated = current
+            .replace("vcrun2005=0", "vcrun2005=1")
+            .replace("vcrun2010=0", "vcrun2010=1");
+        if (!updated.equals(current)) {
+            container.setWinComponents(updated);
+            container.saveData();
+        }
+    }
+
     private void launchInContainer(Uri source, Container container) {
         File temporary = null;
         File destination = null;
         try {
+            prepareBundledDependencies(container);
             String displayName = queryDisplayName(source);
             if (displayName == null || displayName.trim().isEmpty()) {
                 throw new IllegalArgumentException("Не удалось определить имя Windows-файла");
