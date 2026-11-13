@@ -52,6 +52,7 @@ jobs:
       - name: Run scripts
         run: |
           ./scripts/languagelist_updater.sh
+          python3 seven-gamehub/scripts/test-compatibility-contract.py
           mkdir -p out
 
       # Always build and publish the installable debug APK for CI validation.
