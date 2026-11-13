@@ -86,6 +86,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -609,9 +610,14 @@ private fun SevenGameHubApp(
                                 }
                                 snackbar.showSnackbar(summary, withDismissAction = true)
                             } catch (error: Exception) {
-                                if (error is CancellationException) throw error
+                                if (error is CancellationException && error !is TimeoutCancellationException) throw error
+                                val reason = if (error is TimeoutCancellationException) {
+                                    "установщик не завершился за 15 минут; остановил очередь, чтобы не запускать следующий пакет параллельно"
+                                } else {
+                                    error.message ?: "неизвестная ошибка"
+                                }
                                 snackbar.showSnackbar(
-                                    "Автоустановка остановлена: ${error.message ?: "неизвестная ошибка"}",
+                                    "Автоустановка остановлена: $reason",
                                     withDismissAction = true
                                 )
                             }
