@@ -31,6 +31,15 @@ Planned pack groups and their intended scope are specified in [COMPATIBILITY_PAC
 
 **Important:** the pack plan is a target, not a claim that VC++, Microsoft .NET Framework, or WebView2 installers are already integrated. Each pack must have a verified source, version, checksum, dependencies, install/uninstall behavior, and device test before it is exposed as installable.
 
+## Compatibility update 0.13.0
+
+- Imports validated Windows EXE and MSI installers.
+- Runs MSI packages through `msiexec /i` in the selected Winlator container.
+- Keeps the source installer file on Android; library cleanup does not delete it.
+- Dependency packs for VC++, .NET and WebView2 remain separate work and are not advertised as installed or supported yet.
+
+See [COMPATIBILITY_0.13.0.md](COMPATIBILITY_0.13.0.md) for the implemented scope, manual dependency-install workflow and remaining release gates.
+
 ## Game Manager 0.13.0
 
 - Import and validate PE EXE files and Windows Installer MSI databases.
