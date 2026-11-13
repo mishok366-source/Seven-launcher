@@ -55,7 +55,7 @@ internal interface WindowsRuntimeEngine {
 /**
  * SevenX-to-Winlator bridge. The runtime receives a temporary read grant for
  * the imported EXE and a one-shot PendingIntent used only to confirm that its
- * Wine/Box64 launcher process was created.
+ * Wine/Box64 launcher process starts and later exits.
  */
 internal object WindowsRuntime : WindowsRuntimeEngine {
     private const val WINLATOR_PACKAGE = "com.winlator"
