@@ -517,4 +517,7 @@
     <string name="angelica_found_sfpew_notice">Angelica mod found, Simple FPE Wrapper not needed</string>
     <string name="use_angle_checkbox">Use ANGLE (might help FPS)</string>
 
+    <string name="mg_renderer_title_multidrawCompute">Use Multidraw compute emulation</string>
+    <string name="mg_renderer_summary_multidrawCompute">Uses compute shaders to emulate multidraw</string>
+
 </resources>
