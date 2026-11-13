@@ -440,7 +440,7 @@ private fun SevenGameHubApp(
             if (!isSupportedWindowsInstaller(name) || !validFile) {
                 scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE или MSI-файл") }
             } else {
-                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isMsiName(name) || isInstallerFile(context, uri, name))
+                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isMsiName(name) || isInstallerFile(context, uri, name), compatibilityHints = if (isMsiName(name)) "MSI installer • inspect installed application after setup" else WindowsDependencyAnalyzer.analyze(context, uri))
                 scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
             }
         }
