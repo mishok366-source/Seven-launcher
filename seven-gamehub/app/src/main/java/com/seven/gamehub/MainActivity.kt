@@ -597,7 +597,7 @@ private fun LibraryScreen(
                 Spacer(Modifier.height(17.dp))
                 Text("Твой ПК.\nТеперь в кармане.", color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
-                Text("Библиотека EXE, ярлыки и запуск через Winlator. Совместимость зависит от игры и устройства.",
+                Text("Библиотека EXE/MSI, ярлыки и запуск через Winlator. Совместимость зависит от приложения и устройства.",
                     color = Color(0xFFB5BED0), fontSize = 13.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(18.dp))
                 Button(
@@ -607,7 +607,7 @@ private fun LibraryScreen(
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить EXE", fontWeight = FontWeight.Bold)
+                    Text("Добавить EXE / MSI", fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(9.dp))
                 OutlinedButton(
@@ -617,7 +617,7 @@ private fun LibraryScreen(
                 ) {
                     androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Добавить SETUP / установщик")
+                    Text("Добавить установщик EXE / MSI")
                 }
             }
         }
@@ -783,7 +783,7 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Настройки SevenX", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Библиотека, ярлыки и профили отдельных игр", color = Muted, fontSize = 14.sp)
-        SettingsCard("Библиотека", "Импорт EXE/SETUP и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
+        SettingsCard("Библиотека", "Импорт EXE/MSI и управление записями", Icons.Rounded.FolderOpen, "АКТИВНО")
         SettingsCard("Профили игр", "Индивидуальные параметры запуска для каждой игры", Icons.Rounded.Tune, "В РАЗРАБОТКЕ")
         SettingsCard("Ярлыки", "Быстрый запуск игр с рабочего стола Android", Icons.Rounded.Gamepad, "АКТИВНО")
         Spacer(Modifier.height(4.dp))
