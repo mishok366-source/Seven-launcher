@@ -374,6 +374,21 @@ replace_once(
     '        if (sevenxInstallArgs != null && !sevenxInstallArgs.trim().isEmpty()) cmdArgs += " " + sevenxInstallArgs.trim();'
 )
 
+# SevenX-launched sessions must return to the calling Game Manager instead of
+# invoking Winlator's normal restart path (which opens wfm.exe in the EXE folder).
+# Keep the upstream restart behavior unchanged for sessions started inside Winlator.
+replace_once(
+    display,
+    "    private void exit() {\\n        winHandler.stop();",
+    "    private void exit() {\\n"
+    "        if (getIntent().hasExtra(\\\"sevenx_contract_version\\\") || getIntent().getBooleanExtra(\\\"sevenx_desktop_mode\\\", false)) {\\n"
+    "            ForegroundService.stopSession(this);\\n"
+    "            finish();\\n"
+    "            return;\\n"
+    "        }\\n"
+    "        winHandler.stop();"
+)
+
 # Report the actual Wine process exit code, not merely that it was created.
 replace_once(
     display,
