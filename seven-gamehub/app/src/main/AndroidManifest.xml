@@ -20,16 +20,19 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/x-msdownload" android:pathPattern=".*\\.exe" />
+                <data android:scheme="content" android:mimeType="application/x-msdownload" android:pathPattern=".*\\.msi" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/octet-stream" android:pathPattern=".*\\.exe" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" android:pathPattern=".*\\.msi" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/vnd.microsoft.portable-executable" android:pathPattern=".*\\.exe" />
+                <data android:scheme="content" android:mimeType="application/vnd.microsoft.portable-executable" android:pathPattern=".*\\.msi" />
             </intent-filter>
         </activity>
         <provider
