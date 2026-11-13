@@ -22,7 +22,7 @@ SevenX passes imported files to the runtime using Android content URIs. The runt
 ## Compatibility update — 0.13.0
 
 - Imports validated Windows PE EXE and MSI installer files.
-- Routes MSI packages through `msiexec.exe /i` in the selected Wine container.
+- Routes MSI packages through `msiexec.exe /i` in the automatically selected active Wine container.
 - Automatically enables bundled VC++ 2005/2010 components in the target Wine prefix before launch, without asking the user to open their installers.\n- Adds a per-game Compatibility profile that disables ESYNC/FSYNC for apps that need a more conservative synchronization configuration. Standard profile inherits the container's settings.
 - Adds a Compatibility Center with official download links for VC++ v14 x86/x64, VC++ 2013, legacy VC++ documentation, Wine Mono, Microsoft .NET Framework, modern .NET and WebView2.
 - Additional downloaded installers can still be imported through the EXE/MSI flow. Wine Mono, Microsoft .NET Framework, modern .NET and WebView2 are not yet automatically installed; WebView2 remains experimental under Wine/Box64.
