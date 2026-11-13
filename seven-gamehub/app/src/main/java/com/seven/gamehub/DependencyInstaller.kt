@@ -1,7 +1,6 @@
 package com.seven.gamehub
 
 import android.content.Context
-import android.net.Uri
 import androidx.core.content.FileProvider
 import com.seven.gamehub.runtime.RuntimeAvailability
 import com.seven.gamehub.runtime.WindowsRuntime
@@ -12,6 +11,7 @@ import java.net.URL
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.withContext
 
 /**
@@ -41,6 +41,8 @@ internal object DependencyInstaller {
         Package("WebView2 Evergreen", "https://aka.ms/MicrosoftEdgeWebview2Setup.exe", "webview2-setup.exe", "/silent /install")
     )
 
+    private val isRunning = AtomicBoolean(false)
+
     private val allowedHosts = setOf(
         "aka.ms",
         "github.com",
@@ -57,6 +59,8 @@ internal object DependencyInstaller {
         context: Context,
         onProgress: suspend (String) -> Unit
     ): String {
+        check(isRunning.compareAndSet(false, true)) { "Установка совместимости уже выполняется" }
+        try {
         val status = WindowsRuntime.status(context)
         check(status.availability == RuntimeAvailability.READY) {
             "SevenX Desktop не найден. Сначала установи runtime SevenX Desktop."
@@ -71,9 +75,20 @@ internal object DependencyInstaller {
             val installer = try {
                 withContext(Dispatchers.IO) {
                     val destination = File(cache, item.fileName)
-                    if (!destination.isFile || destination.length() < 1024L) {
+                    if (!destination.isFile || destination.length() < 1024L || !looksLikeInstaller(destination, item.fileName)) {
                         destination.delete()
-                        downloadVerifiedHttps(item.url, destination)
+                        val temporary = File(cache, item.fileName + ".part")
+                        temporary.delete()
+                        try {
+                            downloadVerifiedHttps(item.url, temporary)
+                            require(looksLikeInstaller(temporary, item.fileName)) {
+                                "Скачанный файл не прошёл проверку формата EXE/MSI"
+                            }
+                            check(temporary.renameTo(destination)) { "Не удалось сохранить загруженный пакет" }
+                        } catch (error: Exception) {
+                            temporary.delete()
+                            throw error
+                        }
                     }
                     destination
                 }
@@ -95,6 +110,9 @@ internal object DependencyInstaller {
                     executable = uri,
                     installArgs = item.arguments
                 )
+                // Give Winlator time to finish its display activity and return
+                // SevenX to the foreground before the next installer is opened.
+                delay(1_800)
                 if (exitCode == 0) {
                     succeeded += item.title
                     onProgress("Готово: ${item.title}")
@@ -117,6 +135,31 @@ internal object DependencyInstaller {
             append("\nУспешный код выхода не гарантирует, что компонент полностью поддерживается Wine.")
             append("\nARM64-пакеты могут быть несовместимы с x86_64 Wine-префиксом.")
         }
+        } finally {
+            isRunning.set(false)
+        }
+    }
+
+    private fun looksLikeInstaller(file: File, fileName: String): Boolean {
+        return runCatching {
+            file.inputStream().buffered().use { input ->
+                val header = ByteArray(64)
+                var offset = 0
+                while (offset < header.size) {
+                    val count = input.read(header, offset, header.size - offset)
+                    if (count < 0) return@use false
+                    offset += count
+                }
+                if (fileName.endsWith(".msi", ignoreCase = true)) {
+                    header.copyOfRange(0, 8).contentEquals(
+                        byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11.toByte(), 0xE0.toByte(),
+                            0xA1.toByte(), 0xB1.toByte(), 0x1A.toByte(), 0xE1.toByte())
+                    )
+                } else {
+                    header[0] == 0x4D.toByte() && header[1] == 0x5A.toByte()
+                }
+            }
+        }.getOrDefault(false)
     }
 
     private fun downloadVerifiedHttps(initialUrl: String, destination: File) {
