@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harden the SevenX 0.10.0 EXE hand-off after the base Winlator bridge patch."""
+"""Harden the SevenX EXE/MSI hand-off after the base Winlator bridge patch."""
 from pathlib import Path
 import sys
 
@@ -137,9 +137,14 @@ public class SevenXBridgeActivity extends Activity {
         File destination = null;
         try {
             String displayName = queryDisplayName(source);
-            if (displayName == null || displayName.trim().isEmpty() ||
-                !displayName.toLowerCase(Locale.ROOT).endsWith(".exe")) {
-                throw new IllegalArgumentException("Поддерживаются только Windows EXE-установщики");
+            if (displayName == null || displayName.trim().isEmpty()) {
+                throw new IllegalArgumentException("Не удалось определить имя Windows-файла");
+            }
+            String lowerName = displayName.toLowerCase(Locale.ROOT);
+            boolean isExe = lowerName.endsWith(".exe");
+            boolean isMsi = lowerName.endsWith(".msi");
+            if (!isExe && !isMsi) {
+                throw new IllegalArgumentException("Поддерживаются Windows EXE и MSI");
             }
 
             String safeName = displayName.replaceAll("[^A-Za-z0-9._-]", "_");
