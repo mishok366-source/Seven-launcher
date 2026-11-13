@@ -286,8 +286,8 @@ icon_dir.mkdir(parents=True, exist_ok=True)
 
 manifest_text = manifest.read_text(encoding="utf-8")
 manifest_text, icon_count = __import__("re").subn(
-    r'android:(?:roundIcon|icon)="@mipmap/ic_launcher(?:_round)?"',
-    'android:icon="@drawable/sevenx_launcher"',
+    r'(android:(?:roundIcon|icon))="@mipmap/ic_launcher(?:_round)?"',
+    r'\\1="@drawable/sevenx_launcher"',
     manifest_text
 )
 if icon_count < 1:
