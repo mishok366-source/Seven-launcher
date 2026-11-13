@@ -2,7 +2,7 @@ name: SevenX Android
 
 on:
   push:
-    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime", "sevenx-0.6.0-winlator-runtime", "sevenx-0.10.0-installer-launch" ]
+    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime", "sevenx-0.6.0-winlator-runtime", "sevenx-0.10.0-installer-launch", "sevenx-0.11.0-compatibility-packs" ]
     paths:
       - "seven-gamehub/**"
       - ".github/workflows/seven-gamehub.yml"
