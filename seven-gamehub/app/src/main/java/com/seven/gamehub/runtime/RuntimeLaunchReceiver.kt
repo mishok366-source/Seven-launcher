@@ -16,8 +16,11 @@ class RuntimeLaunchReceiver : BroadcastReceiver() {
         if (intent.getBooleanExtra(EXTRA_PROCESS_FINISHED, false)) {
             if (callbackToken.isNotBlank()) {
                 RuntimeLaunchEvents.complete(callbackToken, intent.getIntExtra(EXTRA_EXIT_CODE, -1))
+                return
             }
-            return
+            // A normal game-exit notification has no start-result extra; ignore
+            // it so it cannot overwrite the launch result shown in SevenX.
+            if (!intent.hasExtra(EXTRA_STARTED)) return
         }
         val sourceUri = intent.getStringExtra(EXTRA_SOURCE_URI) ?: return
         val started = intent.getBooleanExtra(EXTRA_STARTED, false)
