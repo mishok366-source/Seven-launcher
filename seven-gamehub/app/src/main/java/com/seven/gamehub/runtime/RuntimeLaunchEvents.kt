@@ -4,27 +4,44 @@ import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Correlates asynchronous Winlator process-exit broadcasts with the coroutine
- * that started a compatibility installer. Tokens prevent concurrent launches
- * from consuming one another's callbacks.
+ * Correlates process-start and process-exit callbacks with the coroutine that
+ * launched an installer. A hand-off to an Android Activity is not treated as
+ * proof that Wine actually created the guest process.
  */
 internal object RuntimeLaunchEvents {
-    private val pending = ConcurrentHashMap<String, CompletableDeferred<Int>>()
+    data class PendingLaunch(
+        val started: CompletableDeferred<Boolean> = Completabletable(),
+        val completed: CompletableDeferred<Int> = Completabletable()
+    )
 
-    fun register(token: String): CompletableDeferred<Int> {
-        val deferred = CompletableDeferred<Int>()
-        check(pending.putIfAbsent(token, deferred) == null) {
+    private fun <T> Completabletable(): CompletableDeferred<T> = CompletableDeferred()
+
+    private val pending = ConcurrentHashMap<String, PendingLaunch>()
+
+    fun register(token: String): PendingLaunch {
+        val operation = PendingLaunch()
+        check(pending.putIfAbsent(token, operation) == null) {
             "A Winlator callback is already registered for this operation"
         }
-        return deferred
+        return operation
+    }
+
+    fun started(token: String, didStart: Boolean) {
+        pending[token]?.started?.complete(didStart)
     }
 
     fun complete(token: String, exitCode: Int) {
-        pending[token]?.complete(exitCode)
+        pending[token]?.completed?.complete(exitCode)
     }
 
-    fun unregister(token: String, deferred: CompletableDeferred<Int>) {
-        pending.remove(token, deferred)
-        deferred.cancel()
+    fun unregister(token: String, operation: PendingLaunch) {
+        pending.remove(token, operation)
+        operation.started.cancel()
+        operation.completed.cancel()
     }
 }
+
+/** Distinguishes a runtime that never starts Wine from an installer that hangs. */
+internal class RuntimeStartTimeoutException : kotlinx.coroutines.CancellationException(
+    "Winlator не подтвердил запуск Windows-процесса за 90 секунд. Очередь остановлена."
+)
