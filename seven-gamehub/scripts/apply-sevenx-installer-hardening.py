@@ -134,6 +134,8 @@ public class SevenXBridgeActivity extends Activity {
         result.putExtra("sevenx_started", started);
         result.putExtra("sevenx_pid", pid);
         result.putExtra("sevenx_error", message == null ? "" : message);
+        result.putExtra("sevenx_process_finished", true);
+        result.putExtra("sevenx_exit_code", -1);
         try {
             callback.send(this, 0, result);
         }
