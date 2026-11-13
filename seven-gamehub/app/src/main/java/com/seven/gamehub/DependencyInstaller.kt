@@ -11,7 +11,6 @@ import java.net.URL
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.withContext
@@ -124,7 +123,7 @@ internal object DependencyInstaller {
                     onProgress("Установщик ${item.title} завершился с кодом $exitCode; продолжаю")
                 }
             } catch (error: Exception) {
-                if (error is CancellationException && error !is TimeoutCancellationException) throw error
+                if (error is CancellationException) throw error
                 failed += "${item.title}: ${error.message ?: "ошибка установки"}"
                 onProgress("Не удалось завершить ${item.title}; продолжаю")
             }
