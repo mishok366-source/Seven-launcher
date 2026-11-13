@@ -819,7 +819,7 @@ private fun CompatibilityScreen(
         }
         item {
             CompatibilityPackCard(
-                title = "Visual C++ 2015–2026 (v14)",
+                title = "Visual C++ v14 (2017–2026; совместим с приложениями 2015+)",
                 description = "Общий актуальный runtime для приложений Visual Studio 2015 и новее. Выбирай x86 для 32-битных программ, x64 для 64-битных.",
                 actions = listOf(
                     "Скачать x86" to "https://aka.ms/vc14/vc_redist.x86.exe",
@@ -850,7 +850,7 @@ private fun CompatibilityScreen(
         item {
             CompatibilityPackCard(
                 title = "Wine Mono",
-                description = "Реализация .NET-совместимого окружения для Wine. Это не Microsoft .NET Framework и не современный .NET Desktop Runtime.",
+                description = "Сначала попробуй встроенный установщик Winlator: Start Menu → System Tools → Installers → Wine Mono. Отдельные релизы доступны по ссылке. Это не Microsoft .NET Framework и не современный .NET Desktop Runtime.",
                 actions = listOf("Релизы Wine Mono" to "https://github.com/wine-mono/wine-mono/releases"),
                 onOpen = ::openOfficialPage
             )
