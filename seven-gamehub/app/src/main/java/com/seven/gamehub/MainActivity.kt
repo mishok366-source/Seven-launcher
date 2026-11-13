@@ -103,7 +103,8 @@ private data class GameEntry(
     val isFavorite: Boolean = false,
     val launchCount: Int = 0,
     val lastLaunchedAt: Long = 0L,
-    val launchProfile: String = "default"
+    val launchProfile: String = "default",
+    val compatibilityHints: String = ""
 )
 
 private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
@@ -245,7 +246,8 @@ private suspend fun importExternalWindowsFile(context: Context, uri: Uri): GameE
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isMsiName(displayName) || isInstallerFile(context, uri, displayName))
+        val hints = if (isMsiName(displayName)) "MSI installer • dependencies inspected after installation" else WindowsDependencyAnalyzer.analyze(destination)
+        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isMsiName(displayName) || isInstallerFile(context, uri, displayName), compatibilityHints = hints)
     }.getOrNull()
 }
 
@@ -273,7 +275,8 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                         item.optBoolean("isFavorite", false),
                         item.optInt("launchCount", 0),
                         item.optLong("lastLaunchedAt", 0L),
-                        item.optString("launchProfile", "default")
+                        item.optString("launchProfile", "default"),
+                        item.optString("compatibilityHints", "")
                     ))
                 }
             }
@@ -291,7 +294,8 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
             .put("isFavorite", game.isFavorite)
             .put("launchCount", game.launchCount)
             .put("lastLaunchedAt", game.lastLaunchedAt)
-            .put("launchProfile", game.launchProfile))
+            .put("launchProfile", game.launchProfile)
+            .put("compatibilityHints", game.compatibilityHints))
     }
     context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit().putString(PREFS_GAMES, array.toString()).apply()
@@ -723,6 +727,9 @@ private fun GameCard(
                 Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
                 Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
+                if (game.compatibilityHints.isNotBlank()) {
+                    Text(game.compatibilityHints, color = AccentBlue, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
             OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
                 androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
