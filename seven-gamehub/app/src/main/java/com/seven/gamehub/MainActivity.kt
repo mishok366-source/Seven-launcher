@@ -721,19 +721,24 @@ private fun HistoryScreen(
             item { Text("Пока нет подтверждённых запусков", color = Muted) }
         } else {
             items(history, key = { it.uri.toString() }) { game ->
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    GameCard(
-                        game = game,
-                        onRun = { onRun(game) },
-                        onPinShortcut = { onPinShortcut(game) },
-                        onToggleFavorite = {},
-                        onRemove = {}
-                    )
-                    Text(
-                        "Запусков: ${game.launchCount} • Последний: " +
-                            SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(game.lastLaunchedAt)),
-                        color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                        .background(Panel).border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "Запусков: ${game.launchCount} • Последний: " +
+                                SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(game.lastLaunchedAt)),
+                            color = Muted, fontSize = 11.sp
+                        )
+                    }
+                    OutlinedButton(onClick = { onRun(game) }, shape = RoundedCornerShape(12.dp)) {
+                        androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
+                    }
                 }
             }
         }
