@@ -54,6 +54,7 @@ checks = {
     "Downloaded EXE files are checked for a real PE signature": "RandomAccessFile(file, \"r\")" in installer and "signature.contentEquals(byteArrayOf(0x50" in installer,
     "Winlator bridge forwards silent installer arguments": 'sevenx_install_args' in hardening and 'sevenxInstallArgs' in hardening,
     "FileProvider exposes the private dependency installer cache": 'path="compatibility-installers/"' in file_provider_paths,
+    "SevenX sessions return to the caller instead of reopening Winlator file manager": '"sevenx_contract_version"' in hardening and '"sevenx_desktop_mode"' in hardening and "ForegroundService.stopSession(this)" in hardening and "wfm.exe in the EXE folder" in hardening,
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
