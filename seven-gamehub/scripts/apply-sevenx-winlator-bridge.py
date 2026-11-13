@@ -251,20 +251,20 @@ public class SevenXBridgeActivity extends Activity {
 build_gradle = root / "app/build.gradle"
 replace_once(
     build_gradle,
-    '        versionCode 33\\n        versionName "11.2"',
-    '        versionCode 34\\n        versionName "0.9.0"'
+    '        versionCode 33\n        versionName "11.2"',
+    '        versionCode 34\n        versionName "0.9.0"'
 )
 
 # Add a dedicated SevenX component manager to the Winlator navigation drawer.
 replace_once(
     menu,
     '<item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />',
-    '<item android:icon="@drawable/icon_install" android:id="@+id/menu_item_components" android:title="Компоненты" />\\n        <item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />'
+    '<item android:icon="@drawable/icon_install" android:id="@+id/menu_item_components" android:title="Компоненты" />\n        <item android:icon="@drawable/icon_container" android:id="@+id/menu_item_containers" android:title="@string/containers" />'
 )
 replace_once(
     main_activity,
-    '            case R.id.menu_item_containers:\\n',
-    '            case R.id.menu_item_components:\\n                showFragment(new SevenXComponentsFragment());\\n                break;\\n            case R.id.menu_item_containers:\\n'
+    '            case R.id.menu_item_containers:\n',
+    '            case R.id.menu_item_components:\n                showFragment(new SevenXComponentsFragment());\n                break;\n            case R.id.menu_item_containers:\n'
 )
 
 components_fragment = root / "app/src/main/java/com/winlator/SevenXComponentsFragment.java"
