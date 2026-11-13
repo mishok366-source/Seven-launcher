@@ -36,6 +36,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Apply SevenX launch bridge
+        run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
+      - name: Harden SevenX installer hand-off
+        run: python3 seven-gamehub/scripts/apply-sevenx-installer-hardening.py .
       - name: Build SevenX debug APK
         working-directory: seven-gamehub
         run: gradle :app:assembleDebug
