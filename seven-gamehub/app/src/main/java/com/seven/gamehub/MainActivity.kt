@@ -144,7 +144,7 @@ private fun enqueueOfficialDependencyDownload(context: Context, title: String, u
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         .setAllowedOverMetered(true)
         .setAllowedOverRoaming(false)
-        .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
     return manager.enqueue(request)
 }
 
