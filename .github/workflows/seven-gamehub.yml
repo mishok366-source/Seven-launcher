@@ -2,7 +2,7 @@ name: SevenX Android
 
 on:
   push:
-    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime", "sevenx-0.6.0-winlator-runtime" ]
+    branches: [ "seven-gamehub-foundation", "sevenx-0.5.0-runtime", "sevenx-0.6.0-winlator-runtime", "sevenx-0.10.0-installer-launch" ]
     paths:
       - "seven-gamehub/**"
       - ".github/workflows/seven-gamehub.yml"
@@ -36,6 +36,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Apply SevenX launch bridge
+        run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
+      - name: Harden SevenX installer hand-off
+        run: python3 seven-gamehub/scripts/apply-sevenx-installer-hardening.py .
       - name: Build SevenX debug APK
         working-directory: seven-gamehub
         run: gradle :app:assembleDebug
@@ -64,6 +68,8 @@ jobs:
           accept-android-sdk-licenses: true
       - name: Apply SevenX launch bridge
         run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
+      - name: Harden SevenX installer hand-off
+        run: python3 seven-gamehub/scripts/apply-sevenx-installer-hardening.py .
       - name: Build SevenX-enabled Winlator runtime APK
         working-directory: seven-gamehub/winlator-source
         run: |

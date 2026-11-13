@@ -7,6 +7,7 @@ SevenX is the game manager for Windows games on Android. It owns the game librar
 ### SevenX — game manager
 - Persistent library of imported Windows games and installers.
 - Import validation, shortcuts, favorites, and launch history.
+- Recognizes NSIS self-extracting EXE installers as installer entries; the setup is launched through the selected Wine container, not treated as an already-installed game.
 - Per-game launch profiles are in development: preferred Winlator container, launch arguments, and game-specific overrides.
 - Game/library settings only. SevenX does not expose low-level Wine/Box64 engine controls.
 

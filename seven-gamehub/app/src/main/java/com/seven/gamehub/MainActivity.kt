@@ -124,6 +124,33 @@ private fun isInstallerName(name: String): Boolean {
         baseName == "install" || baseName.contains("installer") || baseName.contains("install")
 }
 
+/**
+ * Detects NSIS self-extracting installers by their embedded PE manifest marker.
+ * This is a lightweight format hint, not a guarantee that the installed app
+ * will run: the actual payload may have additional architecture/runtime needs.
+ * Only the first 2 MiB are scanned; the NSIS version marker is in the PE resources.
+ */
+private fun hasNsisInstallerSignature(context: Context, uri: Uri): Boolean {
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
+            val buffer = ByteArray(16 * 1024)
+            val collected = java.io.ByteArrayOutputStream()
+            var remaining = 2 * 1024 * 1024
+            while (remaining > 0) {
+                val count = input.read(buffer, 0, minOf(buffer.size, remaining))
+                if (count <= 0) break
+                collected.write(buffer, 0, count)
+                remaining -= count
+            }
+            collected.toString("ISO-8859-1").contains("Nullsoft Install System")
+        } ?: false
+    }.getOrDefault(false)
+}
+
+private fun isInstallerFile(context: Context, uri: Uri, name: String): Boolean {
+    return isInstallerName(name) || hasNsisInstallerSignature(context, uri)
+}
+
 private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
     return runCatching {
         context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
@@ -180,7 +207,7 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isInstallerName(displayName))
+        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isInstallerFile(context, uri, displayName))
     }.getOrNull()
 }
 
@@ -356,7 +383,7 @@ private fun SevenGameHubApp(
             if (!isExeName(name) || !hasPortableExecutableHeader(context, uri)) {
                 scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE-файл") }
             } else {
-                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isInstallerName(name))
+                if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isInstallerFile(context, uri, name))
                 scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
             }
         }
