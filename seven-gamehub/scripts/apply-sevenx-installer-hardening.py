@@ -63,9 +63,11 @@ public class SevenXBridgeActivity extends Activity {
             return;
         }
 
+        ContainerManager containerManager;
         ArrayList<Container> containers;
         try {
-            containers = new ContainerManager(this).getContainers();
+            containerManager = new ContainerManager(this);
+            containers = containerManager.getContainers();
         }
         catch (Exception error) {
             finishWithError("Не удалось прочитать список Wine-контейнеров");
@@ -77,27 +79,30 @@ public class SevenXBridgeActivity extends Activity {
             return;
         }
 
-        String[] labels = new String[containers.size()];
-        for (int i = 0; i < containers.size(); i++) {
-            Container container = containers.get(i);
-            labels[i] = container.getName() + "  (#" + container.id + ")";
+        // Reuse Winlator's currently active container automatically. If no active
+        // symlink can be resolved, use the first available container and activate it.
+        Container selectedContainer = containers.get(0);
+        File activeContainerLink = new File(selectedContainer.getRootDir().getParentFile(), "user");
+        try {
+            File activeContainer = activeContainerLink.getCanonicalFile();
+            for (Container candidate : containers) {
+                if (candidate.getRootDir().getCanonicalFile().equals(activeContainer)) {
+                    selectedContainer = candidate;
+                    break;
+                }
+            }
+        }
+        catch (IOException ignored) {
         }
 
-        new AlertDialog.Builder(this)
-            .setTitle("Выбери Wine-контейнер")
-            .setItems(labels, (dialog, which) -> {
-                if (which < 0 || which >= containers.size()) {
-                    finishWithError("Контейнер не выбран");
-                }
-                else if (desktopRequest) {
-                    startDesktop(containers.get(which));
-                }
-                else {
-                    launchInContainer(source, containers.get(which));
-                }
-            })
-            .setOnCancelListener(dialog -> finishWithError("Выбор контейнера отменён"))
-            .show();
+        try {
+            containerManager.activateContainer(selectedContainer);
+            if (desktopRequest) startDesktop(selectedContainer);
+            else launchInContainer(source, selectedContainer);
+        }
+        catch (Exception error) {
+            finishWithError("Не удалось выбрать Wine-контейнер: " + safeMessage(error));
+        }
     }
 
     private PendingIntent getSevenXCallback() {
