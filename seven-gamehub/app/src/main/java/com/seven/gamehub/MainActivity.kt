@@ -936,7 +936,7 @@ private fun CompatibilityScreen(
             ) {
                 Text("Как установить зависимость", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text("1. Открой официальный источник и скачай нужный EXE/MSI.\n2. Вернись сюда и импортируй скачанный файл.\n3. Запусти его и выбери тот же контейнер, что использует приложение.",
+                Text("1. Нажми «Скачать прямо в SevenX» у VC++ — загрузка пойдёт через Android Download Manager.\n2. После завершения импортируй EXE из папки загрузок приложения.\n3. Запусти установщик в том же Wine-контейнере, где работает приложение.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(onClick = onImportInstaller, modifier = Modifier.fillMaxWidth()) {
