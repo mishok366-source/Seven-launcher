@@ -710,37 +710,41 @@ private fun GameCard(
     onCycleProfile: () -> Unit,
     onRemove: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
-            .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp)
     ) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF292440)), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(Icons.Rounded.Gamepad, null, tint = Accent, modifier = Modifier.size(25.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
-            OutlinedButton(onClick = onCycleProfile, shape = RoundedCornerShape(9.dp)) {
-                Text(if (game.launchProfile == "compatibility") "Профиль: совместимость" else "Профиль: стандарт", fontSize = 10.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF292440)), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(Icons.Rounded.Gamepad, null, tint = Accent, modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
+                androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
             }
         }
-        OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
-            androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
-        }
-        IconButton(onClick = onToggleFavorite) {
-            androidx.compose.material3.Icon(
-                if (game.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                "Избранное", tint = if (game.isFavorite) Color(0xFFFFD166) else Muted
-            )
-        }
-        IconButton(onClick = onPinShortcut) {
-            androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
-        }
-        IconButton(onClick = onRemove) {
-            androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = onCycleProfile, shape = RoundedCornerShape(9.dp), modifier = Modifier.weight(1f)) {
+                Text(if (game.launchProfile == "compatibility") "Профиль: совместимость" else "Профиль: стандарт", fontSize = 10.sp)
+            }
+            IconButton(onClick = onToggleFavorite) {
+                androidx.compose.material3.Icon(
+                    if (game.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                    "Избранное", tint = if (game.isFavorite) Color(0xFFFFD166) else Muted
+                )
+            }
+            IconButton(onClick = onPinShortcut) {
+                androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
+            }
+            IconButton(onClick = onRemove) {
+                androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
+            }
         }
     }
 }
@@ -839,8 +843,7 @@ private fun CompatibilityScreen(
             CompatibilityPackCard(
                 title = "Visual C++ 2005–2012 и архивные версии",
                 description = "Официальная документация Microsoft со ссылками на старые Redistributable. Некоторые версии сняты с поддержки.",
-                actions = listOf("Открыть Microsoft Learn" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist")
-                ,
+                actions = listOf("Открыть Microsoft Learn" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
                 onOpen = ::openOfficialPage
             )
         }
