@@ -45,6 +45,8 @@ checks = {
     "Automatic installer downloads over HTTPS from an explicit host allowlist": 'current.protocol.equals("https"' in installer and "allowedHosts" in installer and "instanceFollowRedirects = false" in installer,
     "Automatic installer caches packages privately and launches each through Wine": 'compatibility-installers' in installer and "WindowsRuntime.launchAndWait" in installer,
     "Automatic installer waits for a real process-exit callback": "withTimeout(timeoutMillis)" in runtime_client and "RuntimeLaunchEvents.complete" in runtime_receiver and "sevenx_process_finished" in hardening,
+    "Failed Winlator process creation completes the pending callback": 'if (pid <= 0)' in bridge and 'sevenx_process_finished' in bridge and 'sevenx_exit_code' in bridge,
+    "Only one automatic dependency batch can run at a time": 'AtomicBoolean(false)' in installer and 'compareAndSet(false, true)' in installer and 'isRunning.set(false)' in installer,
     "Winlator bridge forwards silent installer arguments": 'sevenx_install_args' in hardening and 'sevenxInstallArgs' in hardening,
     "FileProvider exposes the private dependency installer cache": 'path="compatibility-installers/"' in file_provider_paths,
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
