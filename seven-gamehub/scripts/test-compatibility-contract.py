@@ -8,6 +8,11 @@ hardening = (ROOT / "scripts/apply-sevenx-installer-hardening.py").read_text(enc
 manager = (ROOT / "app/src/main/java/com/seven/gamehub/MainActivity.kt").read_text(encoding="utf-8")
 manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
+installer = (ROOT / "app/src/main/java/com/seven/gamehub/DependencyInstaller.kt").read_text(encoding="utf-8")
+runtime_client = (ROOT / "app/src/main/java/com/seven/gamehub/runtime/WindowsRuntime.kt").read_text(encoding="utf-8")
+runtime_events = (ROOT / "app/src/main/java/com/seven/gamehub/runtime/RuntimeLaunchEvents.kt").read_text(encoding="utf-8")
+runtime_receiver = (ROOT / "app/src/main/java/com/seven/gamehub/runtime/RuntimeLaunchReceiver.kt").read_text(encoding="utf-8")
+file_provider_paths = (ROOT / "app/src/main/res/xml/sevenx_file_paths.xml").read_text(encoding="utf-8")
 
 checks = {
     "MSI runtime route invokes Windows Installer": 'msiexec.exe' in bridge and '.msi' in bridge,
@@ -35,6 +40,13 @@ checks = {
     "PE import analysis detects optional DirectShow and DirectPlay components": '"quartz.dll"' in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8") and '"dplayx.dll"' in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8"),
     "Detected component hints reach the runtime bridge": 'sevenx_compatibility_hints' in (ROOT / "app/src/main/java/com/seven/gamehub/runtime/WindowsRuntime.kt").read_text(encoding="utf-8") and 'sevenx_compatibility_hints' in hardening,
     "Runtime enables optional DirectShow and DirectPlay only when detected": 'enableWinComponent(updated, "directshow")' in hardening and 'enableWinComponent(updated, "directplay")' in hardening,
+    "One-tap UI exposes automatic download and installation": "Скачать и установить ВСЁ автоматически" in manager and "onInstallAll" in manager,
+    "Automatic installer contains the complete 11-package list": installer.count('Package("') == 11,
+    "Automatic installer downloads over HTTPS from an explicit host allowlist": 'current.protocol.equals("https"' in installer and "allowedHosts" in installer and "instanceFollowRedirects = false" in installer,
+    "Automatic installer caches packages privately and launches each through Wine": 'compatibility-installers' in installer and "WindowsRuntime.launchAndWait" in installer,
+    "Automatic installer waits for a real process-exit callback": "withTimeout(timeoutMillis)" in runtime_client and "RuntimeLaunchEvents.complete" in runtime_receiver and "sevenx_process_finished" in hardening,
+    "Winlator bridge forwards silent installer arguments": 'sevenx_install_args' in hardening and 'sevenxInstallArgs' in hardening,
+    "FileProvider exposes the private dependency installer cache": 'path="compatibility-installers/"' in file_provider_paths,
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
