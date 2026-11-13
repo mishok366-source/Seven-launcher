@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -60,6 +61,7 @@ internal interface WindowsRuntimeEngine {
 internal object WindowsRuntime : WindowsRuntimeEngine {
     private const val WINLATOR_PACKAGE = "com.winlator"
     private const val WINLATOR_BRIDGE = "com.winlator.SevenXBridgeActivity"
+    private const val START_TIMEOUT_MILLIS = 90_000L
 
     override fun status(context: Context): RuntimeStatus {
         val installed = runCatching {
@@ -137,9 +139,9 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
     }
 
     /**
-     * Starts one installer and waits for Wine's process-exit callback. A
-     * successful process exit is not a guarantee that a package supports Wine,
-     * but it is stronger than treating process creation as installation.
+     * Waits for two distinct runtime events: first a confirmed Wine guest
+     * process start, then its exit. This prevents a stuck Winlator "Starting"
+     * screen from being mistaken for a running installer indefinitely.
      */
     suspend fun launchAndWait(
         context: Context,
@@ -148,7 +150,7 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
         timeoutMillis: Long = 15 * 60 * 1000L
     ): Int {
         val token = UUID.randomUUID().toString()
-        val completion = RuntimeLaunchEvents.register(token)
+        val operation = RuntimeLaunchEvents.register(token)
         try {
             val launchResult = launch(
                 context = context,
@@ -165,9 +167,17 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
                     else -> "Unexpected runtime launch state"
                 }
             }
-            return withTimeout(timeoutMillis) { completion.await() }
+
+            val didStart = try {
+                withTimeout(START_TIMEOUT_MILLIS) { operation.started.await() }
+            } catch (_: TimeoutCancellationException) {
+                throw RuntimeStartTimeoutException()
+            }
+            check(didStart) { "Winlator отклонил запуск Windows-процесса. Проверь контейнер и журнал Winlator." }
+
+            return withTimeout(timeoutMillis) { operation.completed.await() }
         } finally {
-            RuntimeLaunchEvents.unregister(token, completion)
+            RuntimeLaunchEvents.unregister(token, operation)
         }
     }
 }
