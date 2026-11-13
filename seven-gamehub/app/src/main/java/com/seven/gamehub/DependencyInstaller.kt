@@ -6,6 +6,7 @@ import com.seven.gamehub.runtime.RuntimeAvailability
 import com.seven.gamehub.runtime.WindowsRuntime
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -159,7 +160,24 @@ internal object DependencyInstaller {
                             0xA1.toByte(), 0xB1.toByte(), 0x1A.toByte(), 0xE1.toByte())
                     )
                 } else {
-                    header[0] == 0x4D.toByte() && header[1] == 0x5A.toByte()
+                    if (header[0] != 0x4D.toByte() || header[1] != 0x5A.toByte()) {
+                        false
+                    } else {
+                        val peOffset = (header[0x3C].toLong() and 0xFF) or
+                            ((header[0x3D].toLong() and 0xFF) shl 8) or
+                            ((header[0x3E].toLong() and 0xFF) shl 16) or
+                            ((header[0x3F].toLong() and 0xFF) shl 24)
+                        if (peOffset < 64L || peOffset > file.length() - 4L || peOffset > 1024L * 1024L) {
+                            false
+                        } else {
+                            RandomAccessFile(file, "r").use { random ->
+                                random.seek(peOffset)
+                                val signature = ByteArray(4)
+                                random.readFully(signature)
+                                signature.contentEquals(byteArrayOf(0x50, 0x45, 0x00, 0x00))
+                            }
+                        }
+                    }
                 }
             }
         }.getOrDefault(false)
