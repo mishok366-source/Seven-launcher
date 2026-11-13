@@ -1,6 +1,8 @@
 package com.seven.gamehub
 
 import java.io.File
+import android.content.Context
+import android.net.Uri
 import java.io.RandomAccessFile
 import java.util.Locale
 
@@ -10,6 +12,18 @@ import java.util.Locale
  * only; delay-loaded and dynamically loaded DLLs cannot be discovered here.
  */
 internal object WindowsDependencyAnalyzer {
+    fun analyze(context: Context, uri: Uri): String = runCatching {
+        val temporary = File.createTempFile("sevenx-pe-", ".bin", context.cacheDir)
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                temporary.outputStream().use { output -> input.copyTo(output) }
+            } ?: return "Dependency scan unavailable"
+            analyze(temporary)
+        } finally {
+            temporary.delete()
+        }
+    }.getOrElse { "Dependency scan unavailable" }
+
     fun analyze(file: File): String = runCatching {
         RandomAccessFile(file, "r").use { pe ->
             if (pe.length() < 256L || pe.readUnsignedShortLE(0) != 0x5A4D) return "PE analysis unavailable"
