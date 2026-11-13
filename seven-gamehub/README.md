@@ -26,7 +26,7 @@ SevenX passes imported files to the runtime using Android content URIs. The runt
 - Automatically enables bundled VC++ 2005/2010 components in the target prefix through Winlator's native startup component pipeline.
 - Adds a per-game Compatibility profile that disables ESYNC/FSYNC for applications that need it.
 - Adds static PE import inspection for guest architecture and common VC++, CLR/.NET, DirectX, XInput/DirectInput and WebView2 references.
-- Adds a one-tap workflow that downloads 11 official packages into SevenX's private cache and launches each installer sequentially in the active Wine prefix. SevenX waits for the Wine process-exit callback, records each exit code, and continues after an individual failure.
+- Adds a one-tap workflow that downloads 11 official packages into SevenX's private cache and launches each installer sequentially in the active Wine prefix. SevenX waits for the Wine process-exit callback, records each exit code, and continues after an individual package failure. If a guest installer does not exit within 15 minutes, the batch stops rather than launching another installer into a still-running Wine session.
 - Keeps individual official download links and the legacy Android DownloadManager bulk-download option.
 
 The 11-package batch attempts VC++ v14 and 2013 (x86/x64), Wine Mono 11.3 (x86/ARM64), .NET Desktop Runtime 10.0.15 (x86/x64/ARM64), .NET Framework 4.8 offline and WebView2 Evergreen. It uses silent-install switches and HTTPS redirects restricted to an explicit vendor/CDN host allowlist. Downloaded files are checked for EXE/MSI signatures and staged atomically.
