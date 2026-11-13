@@ -601,7 +601,10 @@ private fun SevenGameHubApp(
                         scope.launch {
                             try {
                                 val summary = DependencyInstaller.downloadAndInstall(context) { message ->
-                                    snackbar.showSnackbar(message, withDismissAction = true)
+                                    snackbar.currentSnackbarData?.dismiss()
+                                    scope.launch {
+                                        snackbar.showSnackbar(message, withDismissAction = true)
+                                    }
                                 }
                                 snackbar.showSnackbar(summary, withDismissAction = true)
                             } catch (error: Exception) {
