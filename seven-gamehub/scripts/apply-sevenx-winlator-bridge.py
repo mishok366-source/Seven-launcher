@@ -201,20 +201,24 @@ public class SevenXBridgeActivity extends Activity {
     private void launchInContainer(Uri source, Container container) {
         try {
             String displayName = queryDisplayName(source);
-            if (displayName == null || !displayName.toLowerCase(Locale.ROOT).endsWith(".exe")) {
-                throw new IllegalArgumentException("SevenX передал не EXE-файл");
+            if (displayName == null) throw new IllegalArgumentException("Не удалось определить имя файла");
+            String lowerName = displayName.toLowerCase(Locale.ROOT);
+            boolean exeFile = lowerName.endsWith(".exe");
+            boolean msiFile = lowerName.endsWith(".msi");
+            if (!exeFile && !msiFile) {
+                throw new IllegalArgumentException("Поддерживаются Windows EXE и MSI");
             }
 
             String safeName = displayName.replaceAll("[^A-Za-z0-9._-]", "_");
             File exeDirectory = new File(container.getRootDir(), ".wine/drive_c/SevenX");
             if (!exeDirectory.isDirectory() && !exeDirectory.mkdirs()) {
-                throw new IllegalStateException("Не удалось создать папку для EXE");
+                throw new IllegalStateException("Не удалось создать папку для Windows-приложения");
             }
 
             File destination = new File(exeDirectory, System.currentTimeMillis() + "_" + safeName);
             try (InputStream input = getContentResolver().openInputStream(source);
                  OutputStream output = new java.io.FileOutputStream(destination)) {
-                if (input == null) throw new IllegalStateException("Не удалось прочитать EXE из SevenX");
+                if (input == null) throw new IllegalStateException("Не удалось прочитать установщик из SevenX");
                 byte[] buffer = new byte[64 * 1024];
                 int count;
                 while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
@@ -228,7 +232,7 @@ public class SevenXBridgeActivity extends Activity {
             finish();
         }
         catch (Exception error) {
-            finishWithError(error.getMessage() != null ? error.getMessage() : "Не удалось передать EXE в Winlator");
+            finishWithError(error.getMessage() != null ? error.getMessage() : "Не удалось передать Windows-приложение в Winlator");
         }
     }
 
@@ -253,6 +257,22 @@ replace_once(
     build_gradle,
     '        versionCode 33\n        versionName "11.2"',
     '        versionCode 34\n        versionName "0.9.0"'
+)
+
+# Route MSI databases through Windows Installer in the selected Wine container.
+replace_once(
+    display,
+    """            if (execPath != null) {
+            String execDir = FileUtils.getDirname(execPath);""",
+    """            if (execPath != null && execPath.toLowerCase(Locale.ROOT).endsWith(".msi")) {
+                String execDir = FileUtils.getDirname(execPath);
+                String filename = FileUtils.getName(execPath);
+                cmdArgs = "/dir "+StringUtils.escapeDOSPath(execDir)+" "+(char)34+"msiexec.exe"+(char)34+" /i "+(char)34+filename+(char)34;
+                execPath = null;
+            }
+
+            if (execPath != null) {
+            String execDir = FileUtils.getDirname(execPath);"""
 )
 
 # Add a dedicated SevenX component manager to the Winlator navigation drawer.
