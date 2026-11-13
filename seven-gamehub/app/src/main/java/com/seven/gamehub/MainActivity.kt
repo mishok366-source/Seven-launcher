@@ -465,6 +465,11 @@ private fun SevenGameHubApp(
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2, onClick = { selectedTab = 2 },
+                        icon = { androidx.compose.material3.Icon(Icons.Rounded.Info, null) },
+                        label = { Text("Совместимость") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 3, onClick = { selectedTab = 3 },
                         icon = { androidx.compose.material3.Icon(Icons.Rounded.Tune, null) },
                         label = { Text("Настройки") }
                     )
@@ -531,6 +536,11 @@ private fun SevenGameHubApp(
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
                     },
+                    modifier = Modifier.padding(padding)
+                )
+            } else if (selectedTab == 2) {
+                CompatibilityScreen(
+                    onImportInstaller = { selectedTab = 0; pickerIsInstaller = true; exePicker.launch(arrayOf("*/*")) },
                     modifier = Modifier.padding(padding)
                 )
             } else {
@@ -776,6 +786,148 @@ private fun HistoryScreen(
                         androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
                     }
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun CompatibilityScreen(
+    onImportInstaller: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    fun openOfficialPage(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Column(modifier = Modifier.padding(top = 18.dp, bottom = 4.dp)) {
+                Text("Центр совместимости", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text("Официальные установщики зависимостей для выбранного Wine-контейнера",
+                    color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+            }
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ 2015–2026 (v14)",
+                description = "Общий актуальный runtime для приложений Visual Studio 2015 и новее. Выбирай x86 для 32-битных программ, x64 для 64-битных.",
+                actions = listOf(
+                    "Скачать x86" to "https://aka.ms/vc14/vc_redist.x86.exe",
+                    "Скачать x64" to "https://aka.ms/vc14/vc_redist.x64.exe"
+                ),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ 2013",
+                description = "Отдельный runtime; не заменяется пакетом v14. x86 и x64 устанавливаются рядом при необходимости.",
+                actions = listOf(
+                    "Скачать x86" to "https://aka.ms/highdpimfc2013x86enu",
+                    "Скачать x64" to "https://aka.ms/highdpimfc2013x64enu"
+                ),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Visual C++ 2005–2012 и архивные версии",
+                description = "Официальная документация Microsoft со ссылками на старые Redistributable. Некоторые версии сняты с поддержки.",
+                actions = listOf("Открыть Microsoft Learn" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist")
+                ,
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Wine Mono",
+                description = "Реализация .NET-совместимого окружения для Wine. Это не Microsoft .NET Framework и не современный .NET Desktop Runtime.",
+                actions = listOf("Релизы Wine Mono" to "https://github.com/wine-mono/wine-mono/releases"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Microsoft .NET Framework",
+                description = "Устанавливай только версию, которую требует приложение. Совместимость конкретной версии с выбранной сборкой Wine не гарантируется.",
+                actions = listOf("Официальные загрузки .NET Framework" to "https://dotnet.microsoft.com/en-us/download/dotnet-framework"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Современный .NET Desktop Runtime",
+                description = "Отдельная линейка .NET 6/7/8/9/10. Не является заменой .NET Framework; запуск под Wine/Box64 требует отдельной проверки.",
+                actions = listOf("Официальные загрузки .NET" to "https://dotnet.microsoft.com/en-us/download/dotnet"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Microsoft Edge WebView2",
+                description = "Экспериментальная совместимость. Наличие установщика не означает, что WebView2 Runtime или приложение на его основе заработает в Wine.",
+                actions = listOf("Официальная страница WebView2" to "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            CompatibilityPackCard(
+                title = "Графика и Wine-компоненты",
+                description = "Box64, Turnip, DXVK, VKD3D-Proton, WineD3D и WinComponents настраиваются в SevenX Desktop. Выбор зависит от GPU, драйвера и конкретной игры.",
+                actions = listOf("Документация Winlator" to "https://github.com/brunodev85/winlator"),
+                onOpen = ::openOfficialPage
+            )
+        }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Panel).border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Text("Как установить зависимость", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("1. Открой официальный источник и скачай нужный EXE/MSI.\n2. Вернись сюда и импортируй скачанный файл.\n3. Запусти его и выбери тот же контейнер, что использует приложение.",
+                    color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = onImportInstaller, modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Импортировать скачанный EXE / MSI")
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("SevenX пока не скачивает эти пакеты в фоне и не заявляет их как проверенные. Установка установщика не равна подтверждённой совместимости приложения.",
+                    color = Color(0xFFFFD28A), fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@Composable
+private fun CompatibilityPackCard(
+    title: String,
+    description: String,
+    actions: List<Pair<String, String>>,
+    onOpen: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Panel).border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(description, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        Spacer(Modifier.height(9.dp))
+        actions.forEach { action ->
+            OutlinedButton(onClick = { onOpen(action.second) }, modifier = Modifier.fillMaxWidth()) {
+                Text(action.first, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
