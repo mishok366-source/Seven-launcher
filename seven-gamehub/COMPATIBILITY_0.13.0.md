@@ -10,7 +10,7 @@
 - SevenX automatically enables the bundled VC++ 2005 and 2010 native WinComponents in the target prefix before launch. Winlator applies the changes through its normal startup component pipeline; newly created containers also default to these components.
 - The original Android installer file is preserved. Removing an installer entry from the SevenX library does not delete the source file.
 - Per-game launch profiles are saved in the library. The Compatibility profile disables Wine ESYNC/FSYNC for applications that misbehave with synchronization features; Standard inherits the selected container settings.
-- The Game Manager includes a Compatibility Center with official vendor sources for additional runtimes. The bundled VC++ 2005/2010 components are prepared automatically; other packages such as Microsoft .NET Framework and WebView2 are not silently installed.
+- The Game Manager includes a Compatibility Center with official vendor sources. VC++ 2013 and v14 x86/x64 packages can be downloaded directly through Android DownloadManager into SevenX app storage; the user then imports and explicitly launches the installer in Winlator. The bundled VC++ 2005/2010 components are prepared automatically; .NET, Wine Mono and WebView2 remain official-page/manual workflows.
 - Device diagnostics expose Android ABI, Vulkan feature flags and RAM information.
 
 ## Automatic static dependency inspection\n\nWhen an EXE is imported, SevenX reads its PE header and static import table without executing it. The library records the detected guest architecture and hints for common VC++ runtimes, CLR/.NET, DirectX, XInput/DirectInput and the WebView2 loader. These are diagnostic hints, not an installation decision: delay-loaded DLLs, dynamic LoadLibrary calls, MSI custom actions and dependencies loaded by child processes are not visible in the static import table. MSI requirements can only be assessed after installation. SevenX does not silently download or execute unverified redistributables.\n\n## Compatibility Center sources
@@ -35,7 +35,7 @@ The Compatibility profile only changes ESYNC/FSYNC environment flags. It does no
 
 ## Wine Mono, .NET and WebView2
 
-Wine Mono, Microsoft .NET Framework and modern .NET Desktop Runtime are different products and are not interchangeable. The current build does not yet automate their installation. Static PE import inspection can flag CLR and WebView2 loader references, but cannot infer the exact framework version or prove runtime availability. A successful installer process start does not prove the dependency installed correctly.
+Wine Mono, Microsoft .NET Framework and modern .NET Desktop Runtime are different products and are not interchangeable. The current build does not yet automate their download or installation. Static PE import inspection can flag CLR and WebView2 loader references, but cannot infer the exact framework version or prove runtime availability. A successful installer process start does not prove the dependency installed correctly.
 
 WebView2 remains experimental under Wine/Box64. The Compatibility Center links to Microsoft's official download page but does not label WebView2 as supported or guarantee Electron/WebView applications.
 
@@ -46,3 +46,8 @@ WebView2 remains experimental under Wine/Box64. The Compatibility Center links t
 - CI compilation and successful installer process creation are not application compatibility evidence.
 - Kernel drivers, anti-cheat, unsupported CPU instructions, missing Windows APIs, DRM, UWP dependencies and GPU-driver limitations remain outside the compatibility guarantee.
 - Winlator branding and launcher icon changes remain deferred until after the 0.13.0 release, as planned.
+
+
+## In-app dependency downloads
+
+The Compatibility Center downloads the Microsoft VC++ 2013 and VC++ v14 x86/x64 redistributables directly with Android DownloadManager. Files are placed in SevenX's app-specific Downloads directory and the Android download notification reports completion. The user then imports the downloaded EXE and explicitly starts it through the existing Winlator bridge. SevenX does not silently execute downloaded installers. Other packages remain links to their official vendor pages until stable, versioned, Wine-tested installation paths exist.
