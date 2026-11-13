@@ -6,6 +6,7 @@
 - EXE files are checked for a valid PE header before import.
 - MSI files are checked for the OLE Compound File signature before import.
 - MSI launch requests are translated to `msiexec.exe /i "<package>"` inside the selected Wine container.
+- Newly created containers enable the bundled Visual C++ 2005 and 2010 native component sets by default; existing containers keep their saved settings.
 - The original Android installer file is preserved. Removing an installer entry from the SevenX library does not delete the source file.
 - The runtime still uses the selected Winlator container, Wine prefix, Box64 and the container's graphics/audio configuration.
 
