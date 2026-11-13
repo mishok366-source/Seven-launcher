@@ -80,7 +80,8 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
 
     override suspend fun launch(
         context: Context,
-        executable: Uri
+        executable: Uri,
+        launchProfile: String = "default"
     ): RuntimeLaunchResult {
         val sharedUri = runCatching {
             if (executable.scheme == "file") {
@@ -108,6 +109,7 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             setDataAndType(sharedUri, "application/octet-stream")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra("sevenx_callback", callback)
+            putExtra("sevenx_profile", if (launchProfile == "compatibility") "compatibility" else "default")
         }
 
         return runCatching {
