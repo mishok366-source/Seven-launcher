@@ -261,10 +261,11 @@ replace_once(
 runtime_gradle = root / "app/build.gradle"
 if not runtime_gradle.is_file():
     runtime_gradle = root / "app_pojavlauncher/build.gradle"
+label_count = 0
 if runtime_gradle.is_file():
     gradle_text = runtime_gradle.read_text(encoding="utf-8")
     gradle_text, label_count = __import__("re").subn(
-        r'(resValue\\s+["\\']string["\\']\\s*,\\s*["\\']app_name["\\']\\s*,\\s*["\\'])[^"\\']*(["\\'])',
+        r"(resValue\s+['\"]string['\"]\s*,\s*['\"]app_name['\"]\s*,\s*['\"])[^'\"]*(['\"])",
         lambda match: match.group(1) + "SevenX Desktop" + match.group(2),
         gradle_text
     )
@@ -276,8 +277,8 @@ if not runtime_strings.is_file():
     runtime_strings = root / "app_pojavlauncher/src/main/res/values/strings.xml"
 strings_text = runtime_strings.read_text(encoding="utf-8")
 strings_text, strings_count = __import__("re").subn(
-    r'(<string\\s+name="app_name">)[^<]*(</string>)',
-    r'\\1SevenX Desktop\\2',
+    r"(<string\s+name=\"app_name\">)[^<]*(</string>)",
+    lambda match: match.group(1) + "SevenX Desktop" + match.group(2),
     strings_text
 )
 if strings_count != 1 and label_count == 0:
