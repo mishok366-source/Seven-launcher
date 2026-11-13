@@ -4,12 +4,12 @@
 
 - SevenX accepts Windows PE `.exe` programs and Windows Installer `.msi` databases.
 - EXE files are checked for a valid PE header; MSI files are checked for the OLE Compound File signature.
-- MSI launches are routed through `msiexec.exe /i` inside the selected Wine container.
-- The bridge copies installer files into the selected container using a temporary file and an atomic rename, checks available storage, and removes partial copies after a failed transfer.
-- Newly created containers enable the bundled VC++ 2005 and 2010 native component sets by default; existing container settings are preserved.
+- The bridge automatically reuses Winlator's active Wine container; it no longer asks the user to pick a container on every launch. If none is active, it selects and activates the first available container.
+- EXE/MSI files are copied into the active container using a temporary file and an atomic rename, with free-space checks and partial-copy cleanup.
+- SevenX automatically enables the bundled VC++ 2005 and 2010 native WinComponents in the target prefix before launch. Winlator applies the changes through its normal startup component pipeline; newly created containers also default to these components.
 - The original Android installer file is preserved. Removing an installer entry from the SevenX library does not delete the source file.
 - Per-game launch profiles are saved in the library. The Compatibility profile disables Wine ESYNC/FSYNC for applications that misbehave with synchronization features; Standard inherits the selected container settings.
-- The Game Manager includes a Compatibility Center with official vendor download pages for VC++ redistributables, Wine Mono, .NET and WebView2. Downloaded EXE/MSI files are imported and launched in a selected container; SevenX does not silently redistribute proprietary installers.
+- The Game Manager includes a Compatibility Center with official vendor sources for additional runtimes. The bundled VC++ 2005/2010 components are prepared automatically; other packages such as Microsoft .NET Framework and WebView2 are not silently installed.
 - Device diagnostics expose Android ABI, Vulkan feature flags and RAM information.
 
 ## Compatibility Center sources
@@ -34,7 +34,7 @@ The Compatibility profile only changes ESYNC/FSYNC environment flags. It does no
 
 ## Wine Mono, .NET and WebView2
 
-Wine Mono, Microsoft .NET Framework and modern .NET Desktop Runtime are different products and are not interchangeable. Import the installer into the same Wine prefix as the target application. A successful installer process start does not prove the dependency installed correctly.
+Wine Mono, Microsoft .NET Framework and modern .NET Desktop Runtime are different products and are not interchangeable. The current build does not yet automate their installation. A successful installer process start does not prove the dependency installed correctly.
 
 WebView2 remains experimental under Wine/Box64. The Compatibility Center links to Microsoft's official download page but does not label WebView2 as supported or guarantee Electron/WebView applications.
 
