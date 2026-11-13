@@ -22,6 +22,8 @@ checks = {
     "Per-game profiles are persisted": 'launchProfile' in manager and 'onCycleProfile' in manager,
     "Per-game profile is forwarded to Winlator": 'sevenx_profile' in (ROOT / "app/src/main/java/com/seven/gamehub/runtime/WindowsRuntime.kt").read_text(encoding="utf-8") and 'sevenx_profile' in bridge,
     "Compatibility profile disables sync overrides": 'WINEESYNC", "0' in bridge and 'WINEFSYNC", "0' in bridge,
+    "Bridge automatically reuses the active Wine container": 'activeContainerLink' in hardening and 'containerManager.activateContainer(selectedContainer)' in hardening and 'Выбери Wine-контейнер' not in hardening,
+    "Bundled VC++ dependencies are enabled automatically for existing prefixes": 'prepareBundledDependencies(container)' in hardening and '.replace("vcrun2005=0", "vcrun2005=1")' in hardening and '.replace("vcrun2010=0", "vcrun2010=1")' in hardening,
     "Winlator rebranding is deferred": 'SevenX Desktop' not in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
