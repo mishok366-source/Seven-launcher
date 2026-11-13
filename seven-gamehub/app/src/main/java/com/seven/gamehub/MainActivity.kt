@@ -788,7 +788,17 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsCard("Ярлыки", "Быстрый запуск игр с рабочего стола Android", Icons.Rounded.Gamepad, "АКТИВНО")
         Spacer(Modifier.height(4.dp))
         SettingsCard("SevenX Desktop", runtimeStatus.message, Icons.Rounded.Settings, runtimeLabel)
-        Text("Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop. SevenX отвечает только за библиотеку и игровые профили.",
+        SettingsCard(
+            "Диагностика устройства",
+            diagnostics.summary,
+            Icons.Rounded.Settings,
+            if (diagnostics.supportsArm64 && diagnostics.hasVulkan) "ОБНАРУЖЕНО" else "ОГРАНИЧЕНО"
+        )
+        Text(
+            "ABI: ${diagnostics.primaryAbi} • Vulkan HW: ${diagnostics.vulkanVersion?.toString() ?: "не обнаружен"} • уровень: ${diagnostics.vulkanLevel?.toString() ?: "нет данных"}",
+            color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+        )
+        Text("Эти данные описывают возможности Android-устройства, но не гарантируют совместимость конкретной Windows-программы. Настройки Wine, Box64, контейнеров, графических и аудиодрайверов находятся отдельно — в SevenX Desktop.",
             color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
     }
 }
