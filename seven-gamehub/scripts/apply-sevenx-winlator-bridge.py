@@ -258,19 +258,34 @@ replace_once(
 
 
 # Apply SevenX Desktop branding only: keep the original Winlator UI and runtime.
-runtime_gradle = root / "app_pojavlauncher/build.gradle"
-gradle_text = runtime_gradle.read_text(encoding="utf-8")
-if "Amethyst" not in gradle_text:
-    raise SystemExit(f"Expected original app label in {runtime_gradle}")
-runtime_gradle.write_text(gradle_text.replace("Amethyst", "SevenX Desktop"), encoding="utf-8")
+runtime_gradle = root / "app/build.gradle"
+if not runtime_gradle.is_file():
+    runtime_gradle = root / "app_pojavlauncher/build.gradle"
+if runtime_gradle.is_file():
+    gradle_text = runtime_gradle.read_text(encoding="utf-8")
+    gradle_text, label_count = __import__("re").subn(
+        r'(resValue\\s+["\\']string["\\']\\s*,\\s*["\\']app_name["\\']\\s*,\\s*["\\'])[^"\\']*(["\\'])',
+        lambda match: match.group(1) + "SevenX Desktop" + match.group(2),
+        gradle_text
+    )
+    if label_count:
+        runtime_gradle.write_text(gradle_text, encoding="utf-8")
 
-runtime_strings = root / "app_pojavlauncher/src/main/res/values/strings.xml"
+runtime_strings = root / "app/src/main/res/values/strings.xml"
+if not runtime_strings.is_file():
+    runtime_strings = root / "app_pojavlauncher/src/main/res/values/strings.xml"
 strings_text = runtime_strings.read_text(encoding="utf-8")
-if "Amethyst" in strings_text:
-    runtime_strings.write_text(strings_text.replace("Amethyst", "SevenX Desktop"), encoding="utf-8")
+strings_text, strings_count = __import__("re").subn(
+    r'(<string\\s+name="app_name">)[^<]*(</string>)',
+    r'\\1SevenX Desktop\\2',
+    strings_text
+)
+if strings_count != 1 and label_count == 0:
+    raise SystemExit("Could not locate app_name in Winlator Gradle or strings resources")
+runtime_strings.write_text(strings_text, encoding="utf-8")
 
 # A self-contained vector launcher mark avoids depending on external icon assets.
-icon_dir = root / "app_pojavlauncher/src/main/res/drawable"
+icon_dir = root / "app/src/main/res/drawable"
 icon_dir.mkdir(parents=True, exist_ok=True)
 (icon_dir / "sevenx_launcher.xml").write_text("""<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
