@@ -6,9 +6,9 @@ import android.content.Intent
 import org.json.JSONArray
 
 /**
- * Receives a one-shot PendingIntent callback from the SevenX-enabled Winlator
- * runtime. Installer library entries are removed only after Wine's launcher
- * process has actually been created. The imported file is never deleted.
+ * Receives start and process-exit callbacks from the SevenX-enabled Winlator
+ * runtime. Batch-install callbacks are correlated by token; imported source
+ * files are never deleted by this receiver.
  */
 class RuntimeLaunchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
