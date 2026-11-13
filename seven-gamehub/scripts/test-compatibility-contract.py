@@ -47,6 +47,8 @@ checks = {
     "Automatic installer waits for a real process-exit callback": "withTimeout(timeoutMillis)" in runtime_client and "RuntimeLaunchEvents.complete" in runtime_receiver and "sevenx_process_finished" in hardening,
     "Failed Winlator process creation completes the pending callback": 'if (pid <= 0)' in bridge and 'sevenx_process_finished' in bridge and 'sevenx_exit_code' in bridge,
     "Only one automatic dependency batch can run at a time": 'AtomicBoolean(false)' in installer and 'compareAndSet(false, true)' in installer and 'isRunning.set(false)' in installer,
+    "Installer timeouts stop the queue instead of overlapping Wine sessions": "15 * 60 * 1000L" in runtime_client and "TimeoutCancellationException" in manager and "if (error is CancellationException) throw error" in installer,
+    "Downloaded EXE files are checked for a real PE signature": "RandomAccessFile(file, \"r\")" in installer and "signature.contentEquals(byteArrayOf(0x50" in installer,
     "Winlator bridge forwards silent installer arguments": 'sevenx_install_args' in hardening and 'sevenxInstallArgs' in hardening,
     "FileProvider exposes the private dependency installer cache": 'path="compatibility-installers/"' in file_provider_paths,
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
