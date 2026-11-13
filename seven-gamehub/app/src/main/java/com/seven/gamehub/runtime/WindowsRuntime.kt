@@ -9,6 +9,8 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.withTimeout
 
 /**
  * Result returned by the Windows execution backend.
@@ -97,12 +99,13 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
 
         val callbackIntent = Intent(context, RuntimeLaunchReceiver::class.java).apply {
             putExtra(RuntimeLaunchReceiver.EXTRA_SOURCE_URI, executable.toString())
+            putExtra(RuntimeLaunchReceiver.EXTRA_CALLBACK_TOKEN, callbackToken.orEmpty())
         }
         val callbackFlags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val callback = PendingIntent.getBroadcast(
             context,
-            executable.toString().hashCode(),
+            callbackToken?.hashCode() ?: executable.toString().hashCode(),
             callbackIntent,
             callbackFlags
         )
@@ -114,6 +117,7 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             putExtra("sevenx_callback", callback)
             putExtra("sevenx_profile", if (launchProfile == "compatibility") "compatibility" else "default")
             putExtra("sevenx_compatibility_hints", compatibilityHints)
+            putExtra("sevenx_install_args", installArgs.orEmpty())
         }
 
         return runCatching {
@@ -125,6 +129,41 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             } else {
                 RuntimeLaunchResult.FAILED
             }
+        }
+    }
+
+    /**
+     * Starts one installer and waits for Wine's process-exit callback. A
+     * successful process exit is not a guarantee that a package supports Wine,
+     * but it is stronger than treating process creation as installation.
+     */
+    suspend fun launchAndWait(
+        context: Context,
+        executable: Uri,
+        installArgs: String,
+        timeoutMillis: Long = 15 * 60 * 1000L
+    ): Int {
+        val token = UUID.randomUUID().toString()
+        val completion = RuntimeLaunchEvents.register(token)
+        try {
+            val launchResult = launch(
+                context = context,
+                executable = executable,
+                launchProfile = "compatibility",
+                compatibilityHints = "SevenX dependency installation",
+                callbackToken = token,
+                installArgs = installArgs
+            )
+            check(launchResult == RuntimeLaunchResult.LAUNCH_REQUESTED) {
+                when (launchResult) {
+                    RuntimeLaunchResult.NOT_INSTALLED -> "SevenX Desktop runtime is not installed"
+                    RuntimeLaunchResult.FAILED -> "Winlator could not start the installer"
+                    else -> "Unexpected runtime launch state"
+                }
+            }
+            return withTimeout(timeoutMillis) { completion.await() }
+        } finally {
+            RuntimeLaunchEvents.unregister(token, completion)
         }
     }
 }
