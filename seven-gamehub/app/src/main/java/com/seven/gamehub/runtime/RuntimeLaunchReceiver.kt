@@ -12,6 +12,13 @@ import org.json.JSONArray
  */
 class RuntimeLaunchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val callbackToken = intent.getStringExtra(EXTRA_CALLBACK_TOKEN).orEmpty()
+        if (intent.getBooleanExtra(EXTRA_PROCESS_FINISHED, false)) {
+            if (callbackToken.isNotBlank()) {
+                RuntimeLaunchEvents.complete(callbackToken, intent.getIntExtra(EXTRA_EXIT_CODE, -1))
+            }
+            return
+        }
         val sourceUri = intent.getStringExtra(EXTRA_SOURCE_URI) ?: return
         val started = intent.getBooleanExtra(EXTRA_STARTED, false)
         val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -39,6 +46,9 @@ class RuntimeLaunchReceiver : BroadcastReceiver() {
     companion object {
         const val EXTRA_SOURCE_URI = "sevenx_source_uri"
         const val EXTRA_STARTED = "sevenx_started"
+        const val EXTRA_CALLBACK_TOKEN = "sevenx_callback_token"
+        const val EXTRA_PROCESS_FINISHED = "sevenx_process_finished"
+        const val EXTRA_EXIT_CODE = "sevenx_exit_code"
         const val ACTION_RUN_EXE = "com.seven.gamehub.action.RUN_EXE"
         const val PREFS_NAME = "seven_gamehub_library"
         const val PREFS_GAMES = "games"
