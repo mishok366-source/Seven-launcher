@@ -71,11 +71,15 @@ internal object DependencyInstaller {
         val cache = File(context.filesDir, "compatibility-installers").apply { mkdirs() }
         val succeeded = mutableListOf<String>()
         val failed = mutableListOf<String>()
+        val downloaded = mutableListOf<Pair<Package, File>>()
 
+        // Phase 1: finish every download before opening any Windows installer.
+        // This prevents a guest installer window from competing with the next
+        // Android-side download and ensures the complete set is cached first.
         packages.forEachIndexed { index, item ->
             onProgress("Скачивание ${index + 1}/${packages.size}: ${item.title}")
-            val installer = try {
-                withContext(Dispatchers.IO) {
+            try {
+                val installer = withContext(Dispatchers.IO) {
                     val destination = File(cache, item.fileName)
                     if (!destination.isFile || destination.length() < 1024L || !looksLikeInstaller(destination, item.fileName)) {
                         destination.delete()
@@ -94,14 +98,21 @@ internal object DependencyInstaller {
                     }
                     destination
                 }
+                downloaded += item to installer
+                onProgress("Скачано ${downloaded.size}/${packages.size}: ${item.title}")
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 failed += "${item.title}: загрузка — ${error.message ?: "ошибка"}"
                 onProgress("Не удалось скачать ${item.title}; перехожу к следующему пакету")
-                return@forEachIndexed
             }
+        }
 
-            onProgress("Установка ${index + 1}/${packages.size}: ${item.title}")
+        // Phase 2: only after the download queue is finished, install the
+        // cached packages sequentially in the active Wine prefix.
+        onProgress("Загрузка завершена: ${downloaded.size}/${packages.size}. Начинаю установку.")
+        downloaded.forEachIndexed { index, entry ->
+            val (item, installer) = entry
+            onProgress("Установка ${index + 1}/${downloaded.size}: ${item.title}")
             try {
                 val uri = FileProvider.getUriForFile(
                     context,
