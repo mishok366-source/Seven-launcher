@@ -42,7 +42,8 @@ internal interface WindowsRuntimeEngine {
 
     suspend fun launch(
         context: Context,
-        executable: Uri
+        executable: Uri,
+        launchProfile: String = "default"
     ): RuntimeLaunchResult
 }
 
