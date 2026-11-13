@@ -256,4 +256,42 @@ replace_once(
             String execDir = FileUtils.getDirname(execPath);"""
 )
 
+
+# Apply SevenX Desktop branding only: keep the original Winlator UI and runtime.
+runtime_gradle = root / "app_pojavlauncher/build.gradle"
+gradle_text = runtime_gradle.read_text(encoding="utf-8")
+if "Amethyst" not in gradle_text:
+    raise SystemExit(f"Expected original app label in {runtime_gradle}")
+runtime_gradle.write_text(gradle_text.replace("Amethyst", "SevenX Desktop"), encoding="utf-8")
+
+runtime_strings = root / "app_pojavlauncher/src/main/res/values/strings.xml"
+strings_text = runtime_strings.read_text(encoding="utf-8")
+if "Amethyst" in strings_text:
+    runtime_strings.write_text(strings_text.replace("Amethyst", "SevenX Desktop"), encoding="utf-8")
+
+# A self-contained vector launcher mark avoids depending on external icon assets.
+icon_dir = root / "app_pojavlauncher/src/main/res/drawable"
+icon_dir.mkdir(parents=True, exist_ok=True)
+(icon_dir / "sevenx_launcher.xml").write_text("""<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#7557E8" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M23,25h62v13L51,83H34L67,41H23z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M62,57l8,-10 18,27 -8,10z" />
+</vector>
+""", encoding="utf-8")
+
+manifest_text = manifest.read_text(encoding="utf-8")
+manifest_text, icon_count = __import__("re").subn(
+    r'android:(?:roundIcon|icon)="@mipmap/ic_launcher(?:_round)?"',
+    'android:icon="@drawable/sevenx_launcher"',
+    manifest_text
+)
+if icon_count < 1:
+    raise SystemExit("Could not find Winlator launcher icon declarations in manifest")
+manifest.write_text(manifest_text, encoding="utf-8")
+
 print("SevenX bridge patch applied.")
