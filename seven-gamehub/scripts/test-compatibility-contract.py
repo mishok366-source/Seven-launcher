@@ -2,7 +2,7 @@
 """Static regression checks for the SevenX 0.13.0 EXE/MSI launch contract."""
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 bridge = (ROOT / "scripts/apply-sevenx-winlator-bridge.py").read_text(encoding="utf-8")
 hardening = (ROOT / "scripts/apply-sevenx-installer-hardening.py").read_text(encoding="utf-8")
 manager = (ROOT / "app/src/main/java/com/seven/gamehub/MainActivity.kt").read_text(encoding="utf-8")
