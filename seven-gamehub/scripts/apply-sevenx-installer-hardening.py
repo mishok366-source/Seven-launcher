@@ -254,6 +254,7 @@ public class SevenXBridgeActivity extends Activity {
             displayIntent.putExtra("sevenx_profile", getIntent().getStringExtra("sevenx_profile"));
             displayIntent.putExtra("sevenx_source_uri", source.toString());
             displayIntent.putExtra("sevenx_contract_version", CONTRACT_VERSION);
+            displayIntent.putExtra("sevenx_install_args", getIntent().getStringExtra("sevenx_install_args"));
             startActivity(displayIntent);
             finish();
         }
