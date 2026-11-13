@@ -18,7 +18,7 @@ checks = {
     "Game Manager version is 0.13.0": "versionName '0.13.0'" in gradle,
     "Device diagnostics are visible in Settings": 'diagnostics.summary' in manager and 'diagnostics.vulkanVersion' in manager,
     "Official dependency downloads have Android internet permission": 'android.permission.INTERNET' in manifest,
-    "Compatibility Center downloads official VC++ packages with Android DownloadManager": "DownloadManager.Request" in manager and "setDestinationInExternalFilesDir" in manager and "https://aka.ms/vc14/vc_redist.x86.exe" in manager and "https://aka.ms/highdpimfc2013x64enu" in manager,
+    "Compatibility Center downloads official VC++ packages with Android DownloadManager": "DownloadManager.Request" in manager and "setDestinationInExternalPublicDir" in manager and "https://aka.ms/vc14/vc_redist.x86.exe" in manager and "https://aka.ms/highdpimfc2013x64enu" in manager,
     "Compatibility Center restricts direct dependency downloads to Microsoft hosts": "url.startsWith(\"https://aka.ms/\")" in manager and "url.startsWith(\"https://go.microsoft.com/\")" in manager,
     "Compatibility Center exposes official Microsoft VC++ sources": "https://aka.ms/vc14/vc_redist.x86.exe" in manager and "https://aka.ms/vc14/vc_redist.x64.exe" in manager,
     "Compatibility Center exposes Wine Mono and .NET sources": "wine-mono/wine-mono/releases" in manager and "dotnet.microsoft.com/en-us/download/dotnet-framework" in manager,
