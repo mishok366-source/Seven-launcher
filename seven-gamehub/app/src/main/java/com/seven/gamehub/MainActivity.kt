@@ -91,6 +91,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.seven.gamehub.runtime.RuntimeLaunchResult
+import com.seven.gamehub.runtime.RuntimeStartTimeoutException
 import com.seven.gamehub.runtime.WindowsRuntime
 import com.seven.gamehub.runtime.RuntimeDiagnostics
 import com.seven.gamehub.DependencyInstaller
@@ -610,10 +611,16 @@ private fun SevenGameHubApp(
                                 }
                                 snackbar.showSnackbar(summary, withDismissAction = true)
                             } catch (error: Exception) {
-                                if (error is CancellationException && error !is TimeoutCancellationException) throw error
-                                val reason = if (error is TimeoutCancellationException) {
-                                    "установщик не завершился за 15 минут; остановил очередь, чтобы не запускать следующий пакет параллельно"
-                                } else {
+                                if (error is CancellationException &&
+                                    error !is TimeoutCancellationException &&
+                                    error !is RuntimeStartTimeoutException
+                                ) throw error
+                                val reason = when (error) {
+                                    is RuntimeStartTimeoutException ->
+                                        "Winlator не запустил Windows-процесс за 90 секунд; очередь остановлена"
+                                    is TimeoutCancellationException ->
+                                        "установщик не завершился за 15 минут; остановил очередь, чтобы не запускать следующий пакет параллельно"
+                                    else ->
                                     error.message ?: "неизвестная ошибка"
                                 }
                                 snackbar.showSnackbar(
