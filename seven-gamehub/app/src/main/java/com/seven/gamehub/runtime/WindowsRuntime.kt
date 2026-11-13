@@ -83,7 +83,8 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
     override suspend fun launch(
         context: Context,
         executable: Uri,
-        launchProfile: String
+        launchProfile: String,
+        compatibilityHints: String
     ): RuntimeLaunchResult {
         val sharedUri = runCatching {
             if (executable.scheme == "file") {
