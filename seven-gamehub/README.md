@@ -1,6 +1,6 @@
 # SevenX
 
-SevenX is the game manager for Windows games on Android. It owns the game library, EXE/SETUP imports, game shortcuts, launch history, and per-game profiles.
+SevenX is the game manager for Windows games on Android. It owns the game library, EXE/MSI/SETUP imports, game shortcuts, launch history, and per-game profiles.
 
 ## Two-part architecture
 
@@ -31,8 +31,11 @@ Planned pack groups and their intended scope are specified in [COMPATIBILITY_PAC
 
 **Important:** the pack plan is a target, not a claim that VC++, Microsoft .NET Framework, or WebView2 installers are already integrated. Each pack must have a verified source, version, checksum, dependencies, install/uninstall behavior, and device test before it is exposed as installable.
 
-## Game Manager 0.12.0
+## Game Manager 0.13.0
 
+- Import and validate PE EXE files and Windows Installer MSI databases.
+- MSI packages are launched through `msiexec /i` inside the selected Wine container.
+- MSI and EXE installer entries remain in the library unless the runtime confirms the launch callback.
 - Search the imported game library by file name.
 - Mark entries as favorites; favorite state is stored with the library entry.
 - View launch history, launch count and last confirmed launch time. History is updated only when the SevenX Desktop bridge confirms process creation.
