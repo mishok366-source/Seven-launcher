@@ -17,6 +17,12 @@ checks = {
     "Android manifest exposes MSI file intents": 'application/x-msi' in manifest and 'application/vnd.ms-msi' in manifest,
     "Game Manager version is 0.13.0": "versionName '0.13.0'" in gradle,
     "Device diagnostics are visible in Settings": 'diagnostics.summary' in manager and 'diagnostics.vulkanVersion' in manager,
+    "Compatibility Center exposes official Microsoft VC++ sources": "https://aka.ms/vc14/vc_redist.x86.exe" in manager and "https://aka.ms/vc14/vc_redist.x64.exe" in manager,
+    "Compatibility Center exposes Wine Mono and .NET sources": "wine-mono/wine-mono/releases" in manager and "dotnet.microsoft.com/en-us/download/dotnet-framework" in manager,
+    "Per-game profiles are persisted": 'launchProfile' in manager and 'onCycleProfile' in manager,
+    "Per-game profile is forwarded to Winlator": 'sevenx_profile' in (ROOT / "app/src/main/java/com/seven/gamehub/runtime/WindowsRuntime.kt").read_text(encoding="utf-8") and 'sevenx_profile' in bridge,
+    "Compatibility profile disables sync overrides": 'WINEESYNC", "0' in bridge and 'WINEFSYNC", "0' in bridge,
+    "Winlator rebranding is deferred": 'SevenX Desktop' not in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
 for label, passed in checks.items():
