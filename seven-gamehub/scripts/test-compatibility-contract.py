@@ -58,6 +58,11 @@ checks = {
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
+    "Winlator preloader has a finite five-minute startup watchdog": "300_000L" in bridge and "preloaderDialog.isShowing()" in bridge,
+    "Wine process start failure closes the display instead of leaving the spinner": "if (pid <= 0)" in bridge and "Wine не смог запустить гостевой процесс" in bridge and "finish();" in bridge,
+    "Winlator environment setup exceptions are logged and shown": "Failed to prepare Winlator environment" in bridge and "new AlertDialog.Builder(this)" in bridge,
+    "Wine process creation exceptions are logged instead of swallowed": "SevenXProcess" in bridge and "Failed to start guest command" in bridge,
+
 for label, passed in checks.items():
     print(("PASS" if passed else "FAIL") + ": " + label)
 
