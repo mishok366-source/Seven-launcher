@@ -91,6 +91,7 @@ import kotlinx.coroutines.withContext
 import com.seven.gamehub.runtime.RuntimeLaunchResult
 import com.seven.gamehub.runtime.WindowsRuntime
 import com.seven.gamehub.runtime.RuntimeDiagnostics
+import com.seven.gamehub.DependencyInstaller
 
 private val Background = Color(0xFF090B12)
 private val Panel = Color(0xFF141925)
@@ -596,6 +597,21 @@ private fun SevenGameHubApp(
                     onDownloadQueued = { title ->
                         scope.launch { snackbar.showSnackbar("$title: загрузка началась. После завершения импортируй файл в SevenX.") }
                     },
+                    onInstallAll = {
+                        scope.launch {
+                            try {
+                                val summary = DependencyInstaller.downloadAndInstall(context) { message ->
+                                    snackbar.showSnackbar(message, withDismissAction = true)
+                                }
+                                snackbar.showSnackbar(summary, withDismissAction = true)
+                            } catch (error: Exception) {
+                                snackbar.showSnackbar(
+                                    "Автоустановка остановлена: ${error.message ?: "неизвестная ошибка"}",
+                                    withDismissAction = true
+                                )
+                            }
+                        }
+                    },
                     modifier = Modifier.padding(padding)
                 )
             } else {
@@ -858,6 +874,7 @@ private fun HistoryScreen(
 private fun CompatibilityScreen(
     onImportInstaller: () -> Unit,
     onDownloadQueued: (String) -> Unit,
+    onInstallAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -884,9 +901,17 @@ private fun CompatibilityScreen(
             ) {
                 Text("Полный набор зависимостей", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Spacer(Modifier.height(5.dp))
-                Text("Скачать все 11 пакетов сразу: VC++ x86/x64, Wine Mono, .NET Desktop Runtime 10, .NET Framework 4.8 и WebView2. Файлы сохраняются в общую папку Downloads. Загрузка может занять несколько сотен мегабайт.",
+                Text("SevenX скачает пакеты во внутреннюю папку приложения и по очереди запустит установщики в активном Wine-контейнере. Для каждого пакета будет дождаться завершения процесса; несовместимые пакеты будут отмечены отдельно.",
                     color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = onInstallAll,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF514477))
+                ) {
+                    Text("Скачать и установить ВСЁ автоматически")
+                }
+                Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
                         val queued = enqueueAllDependencyDownloads(context)
