@@ -13,6 +13,13 @@ import org.json.JSONArray
 class RuntimeLaunchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val callbackToken = intent.getStringExtra(EXTRA_CALLBACK_TOKEN).orEmpty()
+        val hasStartResult = intent.hasExtra(EXTRA_STARTED)
+        val started = intent.getBooleanExtra(EXTRA_STARTED, false)
+
+        if (callbackToken.isNotBlank() && hasStartResult) {
+            RuntimeLaunchEvents.started(callbackToken, started)
+        }
+
         if (intent.getBooleanExtra(EXTRA_PROCESS_FINISHED, false)) {
             if (callbackToken.isNotBlank()) {
                 RuntimeLaunchEvents.complete(callbackToken, intent.getIntExtra(EXTRA_EXIT_CODE, -1))
@@ -20,10 +27,10 @@ class RuntimeLaunchReceiver : BroadcastReceiver() {
             }
             // A normal game-exit notification has no start-result extra; ignore
             // it so it cannot overwrite the launch result shown in SevenX.
-            if (!intent.hasExtra(EXTRA_STARTED)) return
+            if (!hasStartResult) return
         }
+
         val sourceUri = intent.getStringExtra(EXTRA_SOURCE_URI) ?: return
-        val started = intent.getBooleanExtra(EXTRA_STARTED, false)
         val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val source = JSONArray(preferences.getString(PREFS_GAMES, "[]") ?: "[]")
         val updated = JSONArray()
