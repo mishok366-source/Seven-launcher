@@ -3,33 +3,45 @@
 ## Implemented in this increment
 
 - SevenX accepts Windows PE `.exe` programs and Windows Installer `.msi` databases.
-- EXE files are checked for a valid PE header before import.
-- MSI files are checked for the OLE Compound File signature before import.
-- MSI launch requests are translated to `msiexec.exe /i "<package>"` inside the selected Wine container.
-- Newly created containers enable the bundled Visual C++ 2005 and 2010 native component sets by default; existing containers keep their saved settings.
+- EXE files are checked for a valid PE header; MSI files are checked for the OLE Compound File signature.
+- MSI launches are routed through `msiexec.exe /i` inside the selected Wine container.
+- The bridge copies installer files into the selected container using a temporary file and an atomic rename, checks available storage, and removes partial copies after a failed transfer.
+- Newly created containers enable the bundled VC++ 2005 and 2010 native component sets by default; existing container settings are preserved.
 - The original Android installer file is preserved. Removing an installer entry from the SevenX library does not delete the source file.
-- The runtime still uses the selected Winlator container, Wine prefix, Box64 and the container's graphics/audio configuration.
+- Per-game launch profiles are saved in the library. The Compatibility profile disables Wine ESYNC/FSYNC for applications that misbehave with synchronization features; Standard inherits the selected container settings.
+- The Game Manager includes a Compatibility Center with official vendor download pages for VC++ redistributables, Wine Mono, .NET and WebView2. Downloaded EXE/MSI files are imported and launched in a selected container; SevenX does not silently redistribute proprietary installers.
+- Device diagnostics expose Android ABI, Vulkan feature flags and RAM information.
 
-## Installing application dependencies manually
+## Compatibility Center sources
 
-Until managed compatibility packs are implemented, users can import a legitimate Windows dependency installer as an EXE or MSI and launch it in the same container as the application that needs it. Examples include vendor redistributables and Wine Mono MSI packages.
+- Microsoft Visual C++ latest supported redistributables (x86/x64): https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/
+- Microsoft Visual C++ v14 x86: https://aka.ms/vc14/vc_redist.x86.exe
+- Microsoft Visual C++ v14 x64: https://aka.ms/vc14/vc_redist.x64.exe
+- Microsoft Visual C++ 2013 x86: https://aka.ms/highdpimfc2013x86enu
+- Microsoft Visual C++ 2013 x64: https://aka.ms/highdpimfc2013x64enu
+- Wine Mono releases: https://github.com/wine-mono/wine-mono/releases
+- Microsoft .NET Framework downloads: https://dotnet.microsoft.com/en-us/download/dotnet-framework
+- Modern .NET downloads: https://dotnet.microsoft.com/en-us/download/dotnet
+- Microsoft Edge WebView2: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 
-Important:
-- Install dependencies into the same Wine container/prefix as the target application.
-- Use the package's official vendor source and choose the correct guest architecture (x86 or x64).
-- A successful installer launch does not prove that the dependency installed correctly or that the target application will work.
-- Do not assume that Microsoft .NET Framework, modern .NET Desktop Runtime, Wine Mono and WebView2 are interchangeable.
-- Do not redistribute proprietary Microsoft installers or DLLs unless their license explicitly permits it.
+Use the architecture required by the Windows guest application. On an ARM64 Android host, x86/x64 guest requirements do not become ARM64 guest requirements. VC++ 2013 and earlier remain side-by-side runtimes; the v14 runtime covers Visual Studio 2015 and later. See Microsoft's documentation for version and licensing details.
 
-## Compatibility work still required before a broad-support release
+## Runtime and graphics components
 
-1. Managed VC++ packs: side-by-side x86/x64 versions, trusted official sources, version metadata, checksums, container-scoped install/repair/remove.
-2. .NET: separate Wine Mono and Microsoft .NET Framework workflows; verify versions individually. Modern .NET remains a separate target.
-3. WebView2: only expose as supported after the runtime installer, loader discovery and real applications pass on the pinned Wine/Box64 build.
-4. Application profiles: select a tested Wine version, Box64 preset, DXVK/VKD3D/WineD3D and environment overrides per app without changing other containers.
-5. Diagnostics: capture architecture, missing DLL/API clues, Wine/Box64 logs, GPU/driver and container configuration.
-6. Physical-device test matrix: 32-bit and 64-bit EXE, MSI, VC++ apps, .NET apps, Electron/WebView apps, DirectX 9/11/12 and OpenGL.
+SevenX Desktop keeps the pinned Winlator interface and its existing native component workflows. Use its existing controls for Box64, Turnip, DXVK, VKD3D-Proton, WineD3D, SoundFont and WinComponents. No second custom component screen is injected into Winlator.
 
-## Release truth
+The Compatibility profile only changes ESYNC/FSYNC environment flags. It does not change Wine version, Box64 preset, graphics driver, DXVK/VKD3D selection or application-specific registry state.
 
-This update adds MSI installation support. It does **not** make every Windows application compatible. Kernel drivers, anti-cheat, unsupported CPU instructions, missing Windows APIs, DRM, UWP dependencies and GPU-driver limitations remain outside the compatibility guarantee. CI compilation is not a substitute for physical-device tests.
+## Wine Mono, .NET and WebView2
+
+Wine Mono, Microsoft .NET Framework and modern .NET Desktop Runtime are different products and are not interchangeable. Import the installer into the same Wine prefix as the target application. A successful installer process start does not prove the dependency installed correctly.
+
+WebView2 remains experimental under Wine/Box64. The Compatibility Center links to Microsoft's official download page but does not label WebView2 as supported or guarantee Electron/WebView applications.
+
+## Release truth and remaining validation
+
+- CI must compile both the SevenX Game Manager and the patched Winlator runtime.
+- Physical-device tests are required for EXE and MSI installers, VC++ dependent applications, Wine Mono/.NET applications, graphics paths and the per-game profile.
+- CI compilation and successful installer process creation are not application compatibility evidence.
+- Kernel drivers, anti-cheat, unsupported CPU instructions, missing Windows APIs, DRM, UWP dependencies and GPU-driver limitations remain outside the compatibility guarantee.
+- Winlator branding and launcher icon changes remain deferred until after the 0.13.0 release, as planned.
