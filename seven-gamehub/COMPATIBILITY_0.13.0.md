@@ -18,7 +18,7 @@ The Compatibility Center has a user-initiated **Download and install ALL** workf
 
 The workflow downloads packages into SevenX's private app cache over HTTPS. Redirects are followed manually and restricted to an explicit allowlist of vendor/CDN hosts. EXE and MSI signatures are checked, downloads are written to temporary files, and only complete files are renamed into the cache.
 
-Each package is handed to the active Wine prefix through the SevenX-enabled Winlator bridge with its silent-install arguments. MSI files use `msiexec.exe /i`. The Game Manager waits for the actual Wine guest-process exit callback, records the exit code, and continues after individual download or installation failures. The batch is serialized so repeated taps cannot start parallel install sequences.
+Each package is handed to the active Wine prefix through the SevenX-enabled Winlator bridge with its silent-install arguments. MSI files use `msiexec.exe /i`. The Game Manager waits for the actual Wine guest-process exit callback, records the exit code, and continues after individual download or ordinary installation failures. If a guest installer does not exit within 15 minutes, the batch stops rather than starting another installer in a still-running Wine session. The batch is serialized so repeated taps cannot start parallel install sequences.
 
 This is **best-effort installation**, not a promise that all 11 packages can be installed in every Wine prefix. A zero exit code confirms only the guest process exit status; it does not prove that a runtime is registered correctly or that a Windows application works. ARM64 guest installers may be incompatible with the x86_64 Wine prefix. Modern .NET, .NET Framework and WebView2 remain experimental under Wine/Box64.
 
