@@ -259,6 +259,15 @@ replace_once(
     '        versionCode 34\n        versionName "0.9.0"'
 )
 
+# Enable the bundled Visual C++ 2005 runtime by default for newly created
+# containers. It remains independently configurable in the native container UI.
+container_java = root / "app/src/main/java/com/winlator/container/Container.java"
+replace_once(
+    container_java,
+    'vcrun2005=0,vcrun2010=1',
+    'vcrun2005=1,vcrun2010=1'
+)
+
 # Route MSI databases through Windows Installer in the selected Wine container.
 replace_once(
     display,
