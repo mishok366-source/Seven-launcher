@@ -52,3 +52,6 @@ CI compilation proves only that the Android projects compile. It does not prove 
 - The EXE/MSI hand-off and installer staging are checked on a physical ARM64 device.
 - VC++ dependent applications, Wine Mono/.NET applications and graphics paths are tested individually.
 - A compatibility claim is made only for an application/version/device combination that has been tested.
+
+
+SevenX 0.13.0 also creates the first default Wine container automatically when no container exists; subsequent launches reuse the active one.
