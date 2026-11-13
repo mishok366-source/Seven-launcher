@@ -262,16 +262,16 @@ replace_once(
 # Route MSI databases through Windows Installer in the selected Wine container.
 replace_once(
     display,
-    """            if (execPath != null) {
+    """        if (execPath != null) {
             String execDir = FileUtils.getDirname(execPath);""",
-    """            if (execPath != null && execPath.toLowerCase(Locale.ROOT).endsWith(".msi")) {
-                String execDir = FileUtils.getDirname(execPath);
-                String filename = FileUtils.getName(execPath);
-                cmdArgs = "/dir "+StringUtils.escapeDOSPath(execDir)+" "+(char)34+"msiexec.exe"+(char)34+" /i "+(char)34+filename+(char)34;
-                execPath = null;
-            }
+    """        if (execPath != null && execPath.toLowerCase(Locale.ROOT).endsWith(".msi")) {
+            String execDir = FileUtils.getDirname(execPath);
+            String filename = FileUtils.getName(execPath);
+            cmdArgs = "/dir "+StringUtils.escapeDOSPath(execDir)+" "+(char)34+"msiexec.exe"+(char)34+" /i "+(char)34+filename+(char)34;
+            execPath = null;
+        }
 
-            if (execPath != null) {
+        if (execPath != null) {
             String execDir = FileUtils.getDirname(execPath);"""
 )
 
