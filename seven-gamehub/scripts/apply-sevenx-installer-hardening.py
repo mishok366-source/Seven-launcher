@@ -361,4 +361,31 @@ replace_once(
     '                    .remove("runtime_last_result_started").remove("runtime_last_result_error").apply()\n'
 )
 
+
+# Carry silent-install arguments through the existing Winlator launcher.
+replace_once(
+    display,
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\windows \\"wfm.exe\\"";',
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\windows \\"wfm.exe\\"";\n'
+    '        String sevenxInstallArgs = getIntent().getStringExtra("sevenx_install_args");\n'
+    '        if (sevenxInstallArgs != null && !sevenxInstallArgs.trim().isEmpty()) cmdArgs += " " + sevenxInstallArgs.trim();'
+)
+
+# Report the actual Wine process exit code, not merely that it was created.
+replace_once(
+    display,
+    '        guestProgramLauncherComponent.setTerminationCallback((status) -> exit());',
+    '        guestProgramLauncherComponent.setTerminationCallback((status) -> {\n'
+    '            PendingIntent callback = (PendingIntent)getIntent().getParcelableExtra("sevenx_callback");\n'
+    '            if (callback != null) {\n'
+    '                Intent result = new Intent();\n'
+    '                result.putExtra("sevenx_process_finished", true);\n'
+    '                result.putExtra("sevenx_exit_code", status);\n'
+    '                try { callback.send(this, 0, result); }\n'
+    '                catch (PendingIntent.CanceledException ignored) {}\n'
+    '            }\n'
+    '            exit();\n'
+    '        });'
+)
+
 print("SevenX 0.10.0 installer bridge hardening applied.")
