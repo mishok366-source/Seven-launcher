@@ -5,16 +5,14 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Correlates process-start and process-exit callbacks with the coroutine that
- * launched an installer. A hand-off to an Android Activity is not treated as
- * proof that Wine actually created the guest process.
+ * launched an installer. An Android Activity hand-off is not proof that Wine
+ * actually created the guest process.
  */
 internal object RuntimeLaunchEvents {
     data class PendingLaunch(
-        val started: CompletableDeferred<Boolean> = Completabletable(),
-        val completed: CompletableDeferred<Int> = Completabletable()
+        val started: CompletableDeferred<Boolean> = CompletableDeferred(),
+        val completed: CompletableDeferred<Int> = CompletableDeferred()
     )
-
-    private fun <T> Completabletable(): CompletableDeferred<T> = CompletableDeferred()
 
     private val pending = ConcurrentHashMap<String, PendingLaunch>()
 
