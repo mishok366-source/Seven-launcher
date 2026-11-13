@@ -85,6 +85,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -608,6 +609,7 @@ private fun SevenGameHubApp(
                                 }
                                 snackbar.showSnackbar(summary, withDismissAction = true)
                             } catch (error: Exception) {
+                                if (error is CancellationException) throw error
                                 snackbar.showSnackbar(
                                     "Автоустановка остановлена: ${error.message ?: "неизвестная ошибка"}",
                                     withDismissAction = true
