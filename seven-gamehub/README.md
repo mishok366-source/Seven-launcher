@@ -15,7 +15,7 @@ SevenX is the game manager for Windows games on Android. It owns the game librar
 - Built from the pinned Winlator source and keeps its original interface and built-in workflows.
 - Adds the SevenX launch bridge, automatic reuse of the active Wine container, bundled VC++ prefix preparation and a desktop-session entry.
 - Keeps native Winlator controls for containers, Wine, Box64, graphics drivers, DXVK/VKD3D, audio, resolution and input.
-- Branding and launcher-icon changes are deliberately deferred until after the 0.13.0 release.
+- The launcher is branded as SevenX Desktop with a SevenX icon; the original Winlator interface and runtime workflows are preserved.
 
 SevenX passes imported files to the runtime using Android content URIs. The runtime automatically reuses the active Wine container, stages a copy with a temporary file and a final rename, and preserves the original Android file.
 
