@@ -404,7 +404,7 @@ private fun SevenGameHubApp(
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                when (WindowsRuntime.launch(context, targetGame.uri, targetGame.launchProfile)) {
+                when (WindowsRuntime.launch(context, targetGame.uri, targetGame.launchProfile, targetGame.compatibilityHints)) {
                     RuntimeLaunchResult.STARTED -> snackbar.showSnackbar("${targetGame.name} запущен")
                     RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
                         "${targetGame.name} передан в Winlator. Ждём подтверждения запуска."
@@ -518,7 +518,7 @@ private fun SevenGameHubApp(
                     },
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile)) {
+                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile, game.compatibilityHints)) {
                                 RuntimeLaunchResult.STARTED -> {
                                     if (game.isInstaller) {
                                         // Remove only the library entry. Do not delete game.uri or its file.
@@ -749,7 +749,7 @@ private fun GameCard(
                 Spacer(Modifier.height(4.dp))
                 Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
                 if (game.compatibilityHints.isNotBlank()) {
-                    Text(game.compatibilityHints, color = AccentBlue, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(game.compatibilityHints.substringBefore("[SEVENX_COMPONENTS:").trim(), color = AccentBlue, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {

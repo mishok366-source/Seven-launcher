@@ -85,6 +85,17 @@ internal object WindowsDependencyAnalyzer {
             if (imports.any { it == "d3d9.dll" || it == "d3d10.dll" || it == "d3d11.dll" || it == "d3d12.dll" || it == "dxgi.dll" }) hints += "DirectX (DXVK/WineD3D/VKD3D profile)"
             if (imports.any { it.startsWith("xinput") || it.startsWith("dinput") }) hints += "DirectInput/XInput"
             if (imports.any { it == "webview2loader.dll" }) hints += "WebView2 loader detected (runtime support not guaranteed)"
+
+            // Only request optional native components when static imports prove they are used.
+            val autoComponents = linkedSetOf<String>()
+            if (imports.any { it in setOf("quartz.dll", "strmiids.dll", "devenum.dll", "qedit.dll") }) {
+                hints += "DirectShow"
+                autoComponents += "directshow"
+            }
+            if (imports.any { it in setOf("dplay.dll", "dplayx.dll", "dpnet.dll") }) {
+                hints += "DirectPlay"
+                autoComponents += "directplay"
+            }
             if (hints.isEmpty()) hints += "No known runtime dependency found in static imports"
 
             val arch = when (machine) {
@@ -94,7 +105,9 @@ internal object WindowsDependencyAnalyzer {
                 0x01c4 -> "ARM"
                 else -> "unknown architecture"
             }
-            "$arch • " + hints.joinToString(", ")
+            val componentMarker = if (autoComponents.isEmpty()) "" else
+                " [SEVENX_COMPONENTS:" + autoComponents.joinToString(",") + "]"
+            "$arch • " + hints.joinToString(", ") + componentMarker
         }
     }.getOrElse { "Dependency scan unavailable" }
 

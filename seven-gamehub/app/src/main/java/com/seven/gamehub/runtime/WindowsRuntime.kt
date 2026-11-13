@@ -43,7 +43,8 @@ internal interface WindowsRuntimeEngine {
     suspend fun launch(
         context: Context,
         executable: Uri,
-        launchProfile: String = "default"
+        launchProfile: String = "default",
+        compatibilityHints: String = ""
     ): RuntimeLaunchResult
 }
 
@@ -111,6 +112,7 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra("sevenx_callback", callback)
             putExtra("sevenx_profile", if (launchProfile == "compatibility") "compatibility" else "default")
+            putExtra("sevenx_compatibility_hints", compatibilityHints)
         }
 
         return runCatching {

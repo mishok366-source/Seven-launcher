@@ -30,6 +30,9 @@ checks = {
     "Bundled VC++ dependencies are enabled automatically for existing prefixes": 'prepareBundledDependencies(container)' in hardening and '.replace("vcrun2005=0", "vcrun2005=1")' in hardening and '.replace("vcrun2010=0", "vcrun2010=1")' in hardening,
     "PE dependency analyzer identifies architecture and common runtime DLLs": "WindowsDependencyAnalyzer.analyze" in manager and "mscoree.dll" in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8") and "vcruntime" in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8"),
     "Detected compatibility hints are persisted and shown in the library": "compatibilityHints" in manager and "WindowsDependencyAnalyzer.analyze(context, uri)" in manager,
+    "PE import analysis detects optional DirectShow and DirectPlay components": '"quartz.dll"' in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8") and '"dplayx.dll"' in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8"),
+    "Detected component hints reach the runtime bridge": 'sevenx_compatibility_hints' in (ROOT / "app/src/main/java/com/seven/gamehub/runtime/WindowsRuntime.kt").read_text(encoding="utf-8") and 'sevenx_compatibility_hints' in hardening,
+    "Runtime enables optional DirectShow and DirectPlay only when detected": 'enableWinComponent(updated, "directshow")' in hardening and 'enableWinComponent(updated, "directplay")' in hardening,
     "Winlator rebranding is deferred": 'SevenX Desktop' not in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
