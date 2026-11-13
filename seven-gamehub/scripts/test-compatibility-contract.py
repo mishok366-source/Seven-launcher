@@ -56,12 +56,11 @@ checks = {
     "FileProvider exposes the private dependency installer cache": 'path="compatibility-installers/"' in file_provider_paths,
     "SevenX sessions return to the caller instead of reopening Winlator file manager": '"sevenx_contract_version"' in hardening and '"sevenx_desktop_mode"' in hardening and "ForegroundService.stopSession(this)" in hardening and "wfm.exe in the EXE folder" in hardening,
     "SevenX Desktop branding changes only the app label and launcher icon": 'SevenX Desktop' in bridge and 'sevenx_launcher.xml' in bridge and 'SevenXComponentsFragment' not in bridge,
-}
-
     "Winlator preloader has a finite five-minute startup watchdog": "300_000L" in bridge and "preloaderDialog.isShowing()" in bridge,
     "Wine process start failure closes the display instead of leaving the spinner": "if (pid <= 0)" in bridge and "Wine не смог запустить гостевой процесс" in bridge and "finish();" in bridge,
     "Winlator environment setup exceptions are logged and shown": "Failed to prepare Winlator environment" in bridge and "new AlertDialog.Builder(this)" in bridge,
     "Wine process creation exceptions are logged instead of swallowed": "SevenXProcess" in bridge and "Failed to start guest command" in bridge,
+}
 
 for label, passed in checks.items():
     print(("PASS" if passed else "FAIL") + ": " + label)
