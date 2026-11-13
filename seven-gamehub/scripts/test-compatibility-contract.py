@@ -16,6 +16,7 @@ checks = {
     "Game Manager accepts EXE and MSI": 'isSupportedWindowsInstaller' in manager and 'isExeName(name) || isMsiName(name)' in manager,
     "Android manifest exposes MSI file intents": 'application/x-msi' in manifest and 'application/vnd.ms-msi' in manifest,
     "Game Manager version is 0.13.0": "versionName '0.13.0'" in gradle,
+    "Device diagnostics are visible in Settings": 'diagnostics.summary' in manager and 'diagnostics.vulkanVersion' in manager,
 }
 
 for label, passed in checks.items():
