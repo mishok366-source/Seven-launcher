@@ -4,6 +4,7 @@
 
 - SevenX accepts Windows PE `.exe` programs and Windows Installer `.msi` databases.
 - EXE files are checked for a valid PE header; MSI files are checked for the OLE Compound File signature.
+- On first launch, if no Wine prefix exists, the bridge asks Winlator's `ContainerManager` to create a default container automatically; it then activates and uses that prefix. Existing installations continue using the active container.
 - The bridge automatically reuses Winlator's active Wine container; it no longer asks the user to pick a container on every launch. If none is active, it selects and activates the first available container.
 - EXE/MSI files are copied into the active container using a temporary file and an atomic rename, with free-space checks and partial-copy cleanup.
 - SevenX automatically enables the bundled VC++ 2005 and 2010 native WinComponents in the target prefix before launch. Winlator applies the changes through its normal startup component pipeline; newly created containers also default to these components.
