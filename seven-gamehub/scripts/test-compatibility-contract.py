@@ -44,6 +44,7 @@ checks = {
     "Automatic installer contains the complete 11-package list": installer.count('Package("') == 11,
     "Automatic installer downloads over HTTPS from an explicit host allowlist": 'current.protocol.equals("https"' in installer and "allowedHosts" in installer and "instanceFollowRedirects = false" in installer,
     "Automatic installer caches packages privately and launches each through Wine": 'compatibility-installers' in installer and "WindowsRuntime.launchAndWait" in installer,
+    "Automatic installer completes all downloads before starting the first Wine installer": installer.index("downloadVerifiedHttps(item.url, temporary)") < installer.index("WindowsRuntime.launchAndWait") and "Phase 1: finish every download" in installer and "Phase 2: only after the download queue is finished" in installer,
     "Automatic installer waits for a real process-exit callback": "withTimeout(timeoutMillis)" in runtime_client and "RuntimeLaunchEvents.complete" in runtime_receiver and "sevenx_process_finished" in hardening,
     "Automatic installer waits for confirmed Wine process start before waiting for exit": "operation.started.await()" in runtime_client and "RuntimeLaunchEvents.started" in runtime_receiver and "setStartCallback" in bridge,
     "Winlator startup has a finite timeout distinct from installer completion": "START_TIMEOUT_MILLIS = 90_000L" in runtime_client and "RuntimeStartTimeoutException" in runtime_client and "Winlator не запустил Windows-процесс за 90 секунд" in manager,
