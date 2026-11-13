@@ -366,8 +366,8 @@ replace_once(
 # Carry silent-install arguments through the existing Winlator launcher.
 replace_once(
     display,
-    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\windows \\"wfm.exe\\"";',
-    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\windows \\"wfm.exe\\"";\n'
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\\\windows \\"wfm.exe\\"";',
+    '        if (cmdArgs.isEmpty()) cmdArgs = "/dir C:\\\\windows \\"wfm.exe\\"";\n'
     '        String sevenxInstallArgs = getIntent().getStringExtra("sevenx_install_args");\n'
     '        if (sevenxInstallArgs != null && !sevenxInstallArgs.trim().isEmpty()) cmdArgs += " " + sevenxInstallArgs.trim();'
 )
