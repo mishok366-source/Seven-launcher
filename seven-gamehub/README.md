@@ -7,29 +7,34 @@ SevenX is the game manager for Windows games on Android. It owns the game librar
 ### SevenX — game manager
 - Persistent library of imported Windows games and installers.
 - Import validation, shortcuts, favorites, and launch history.
-- Recognizes NSIS self-extracting EXE installers as installer entries; the setup is launched through the selected Wine container, not treated as an already-installed game.
-- Per-game launch profiles are in development: preferred Winlator container, launch arguments, and game-specific overrides.
-- Game/library settings only. SevenX does not expose low-level Wine/Box64 engine controls.
+- Installer entries are kept separate from installed-game shortcuts.
+- Game/library settings only. Low-level Wine and graphics controls stay in SevenX Desktop.
 
 ### SevenX Desktop — Windows environment
 - A separately built Winlator-based runtime with SevenX branding and a redesigned dark-purple interface.
-- A dedicated **Рабочий стол** entry starts a Wine desktop session in a selected container.
-- The **Приложения** section opens the Windows shortcut/application list.
-- Existing Winlator capabilities remain available: file manager, containers, Wine, Box64, graphics and audio configuration, input controls, and display settings.
-- Runtime settings belong here: container configuration, Wine/Box64 versions and presets, graphics drivers, DXVK/VKD3D, audio, resolution, and input.
+- **Рабочий стол** starts a Wine desktop session in a selected container.
+- **Приложения** opens the Windows shortcut/application list.
+- Runtime controls include containers, Wine, Box64, graphics drivers, DXVK/VKD3D, audio, resolution, and input.
 
-SevenX launches a game through the runtime bridge. The runtime asks for a container when no game-specific container has been selected. It copies the EXE into that container and starts it through Winlator's XServer/Wine path. The original imported file is not deleted.
+SevenX passes imported files to the runtime using Android content URIs. The runtime stages a copy in the selected container; the original Android file remains untouched.
+
+## Compatibility target — 0.11.0
+
+The target is a practical **6–8 GiB installed footprint for a broad, commonly useful compatibility setup**, not a mandatory download and not a guarantee that every Windows program works. Keep the base runtime lean and offer larger dependencies as optional, on-demand packs. Users may install more than the target when they choose.
+
+Planned pack groups and their intended scope are specified in [COMPATIBILITY_PACKS_0.11.0.md](COMPATIBILITY_PACKS_0.11.0.md). In particular:
+- Core Wine/Box64 runtime and the existing graphics components.
+- Common VC++ runtime dependencies.
+- .NET/Mono support with framework versions selected per application.
+- WebView/browser dependencies only through a verified installation path.
+- Optional gaming and legacy compatibility components.
+
+**Important:** the pack plan is a target, not a claim that VC++, Microsoft .NET Framework, or WebView2 installers are already integrated. Each pack must have a verified source, version, checksum, dependencies, install/uninstall behavior, and device test before it is exposed as installable.
 
 ## Build outputs
 
 The CI workflow builds two APKs:
 - `sevenx-debug` — SevenX game manager.
-- `winlator-sevenx-runtime-debug` — redesigned SevenX Desktop runtime.
+- `winlator-sevenx-runtime-debug` — SevenX Desktop runtime.
 
-Install both APKs to use the bridge. The runtime requires first-time setup and a configured container. A successful CI build does not prove compatibility on every device or with every Windows application.
-
-## Compatibility and status
-
-The runtime uses Wine and Box64 and depends on the Android device's CPU, Vulkan/OpenGL drivers, memory, and the individual application's requirements. Some Windows applications will not work, even when the runtime installs correctly.
-
-CI compilation is not physical-device validation. Desktop mode, ordinary Windows applications, and game launching must be tested on an ARM64 Android device before describing them as production-ready.
+CI compilation does not prove Windows application compatibility on a physical device. Results depend on CPU architecture, Android version, Vulkan/OpenGL drivers, memory, Wine/Box64, and application-specific requirements.
