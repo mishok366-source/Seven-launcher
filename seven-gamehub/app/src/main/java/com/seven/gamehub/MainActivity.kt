@@ -128,6 +128,8 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
 private const val PREFS_NAME = "seven_gamehub_library"
 
 private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
+private fun isMsiName(name: String): Boolean = name.trim().lowercase().endsWith(".msi")
+private fun isSupportedWindowsInstaller(name: String): Boolean = isExeName(name) || isMsiName(name)
 
 // Installer entries are removed from the SevenX library only after the runtime
 // confirms that Windows successfully started the installer. The imported file
@@ -204,7 +206,26 @@ private fun hasPortableExecutableHeader(context: Context, uri: Uri): Boolean {
     }.getOrDefault(false)
 }
 
-private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = withContext(Dispatchers.IO) {
+private fun hasMsiDatabaseSignature(context: Context, uri: Uri): Boolean {
+    val expected = byteArrayOf(
+        0xD0.toByte(), 0xCF.toByte(), 0x11.toByte(), 0xE0.toByte(),
+        0xA1.toByte(), 0xB1.toByte(), 0x1A.toByte(), 0xE1.toByte()
+    )
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val actual = ByteArray(expected.size)
+            var offset = 0
+            while (offset < actual.size) {
+                val count = input.read(actual, offset, actual.size - offset)
+                if (count < 0) return@use false
+                offset += count
+            }
+            actual.contentEquals(expected)
+        } ?: false
+    }.getOrDefault(false)
+}
+
+private suspend fun importExternalWindowsFile(context: Context, uri: Uri): GameEntry? = withContext(Dispatchers.IO) {
     runCatching {
         val displayName = context.contentResolver.query(
             uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
@@ -212,8 +233,9 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
             if (cursor.moveToFirst()) cursor.getString(0) else null
         } ?: uri.lastPathSegment ?: "Windows-app.exe"
 
-        if (!isExeName(displayName)) return@withContext null
-        if (!hasPortableExecutableHeader(context, uri)) return@withContext null
+        if (!isSupportedWindowsInstaller(displayName)) return@withContext null
+        val validFile = if (isMsiName(displayName)) hasMsiDatabaseSignature(context, uri) else hasPortableExecutableHeader(context, uri)
+        if (!validFile) return@withContext null
 
         val importDir = File(context.filesDir, "exe-imports").apply { mkdirs() }
         val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(100)
@@ -221,7 +243,7 @@ private suspend fun importExternalExe(context: Context, uri: Uri): GameEntry? = 
         context.contentResolver.openInputStream(uri)?.use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
         } ?: return@withContext null
-        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isInstallerFile(context, uri, displayName))
+        GameEntry(displayName, FileProvider.getUriForFile(context, "${context.packageName}.files", destination), isMsiName(displayName) || isInstallerFile(context, uri, displayName))
     }.getOrNull()
 }
 
@@ -378,7 +400,7 @@ private fun SevenGameHubApp(
     LaunchedEffect(incomingExeUri) {
         val uriString = incomingExeUri ?: return@LaunchedEffect
         selectedTab = 0
-        val imported = importExternalExe(context, Uri.parse(uriString))
+        val imported = importExternalWindowsFile(context, Uri.parse(uriString))
         if (imported != null) {
             val existing = games.firstOrNull { it.name == imported.name }
             if (existing == null) games = games + imported
@@ -386,7 +408,7 @@ private fun SevenGameHubApp(
                 if (existing == null) "${imported.name} импортирован в SevenX" else "${imported.name} уже есть в библиотеке"
             )
         } else {
-            snackbar.showSnackbar("Не удалось открыть файл. Нужен корректный EXE с расширением .exe.")
+            snackbar.showSnackbar("Не удалось открыть файл. Нужен корректный Windows EXE или MSI.")
         }
         onIncomingExeHandled()
     }
@@ -406,8 +428,9 @@ private fun SevenGameHubApp(
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: uri.lastPathSegment ?: "Windows game.exe"
 
-            if (!isExeName(name) || !hasPortableExecutableHeader(context, uri)) {
-                scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE-файл") }
+            val validFile = if (isMsiName(name)) hasMsiDatabaseSignature(context, uri) else isExeName(name) && hasPortableExecutableHeader(context, uri)
+            if (!isSupportedWindowsInstaller(name) || !validFile) {
+                scope.launch { snackbar.showSnackbar("Это не распознанный Windows EXE или MSI-файл") }
             } else {
                 if (games.none { it.uri == uri }) games = games + GameEntry(name, uri, pickerIsInstaller || isInstallerFile(context, uri, name))
                 scope.launch { snackbar.showSnackbar("$name добавлен в библиотеку") }
@@ -629,7 +652,7 @@ private fun LibraryScreen(
                     Spacer(Modifier.height(14.dp))
                     Text("Здесь пока пусто", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Spacer(Modifier.height(6.dp))
-                    Text("Выбери EXE-файл, чтобы добавить\nпервую игру в библиотеку", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+                    Text("Выбери EXE или MSI-файл, чтобы добавить\nпервое приложение в библиотеку", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
                     Spacer(Modifier.height(17.dp))
                     OutlinedButton(onClick = onAdd, shape = RoundedCornerShape(13.dp)) {
                         androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null, modifier = Modifier.size(17.dp))
@@ -653,7 +676,7 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.12.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.13.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
             }
         }
     }
@@ -679,7 +702,7 @@ private fun GameCard(
         Column(Modifier.weight(1f)) {
             Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Text(if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
+            Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
         }
         OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
             androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
