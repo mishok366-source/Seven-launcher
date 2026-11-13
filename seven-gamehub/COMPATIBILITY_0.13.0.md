@@ -1,5 +1,8 @@
 # SevenX 0.13.0 — Windows application compatibility
 
+- Прямые загрузки VC++ v14 и VC++ 2013 доступны в Центре совместимости.
+- Центр совместимости предлагает пакетную загрузку 11 официальных установщиков: VC++ v14 и 2013 (x86/x64), Wine Mono 11.3 (x86/ARM64), .NET Desktop Runtime 10.0.15 (x86/x64/ARM64), .NET Framework 4.8 offline и WebView2 Evergreen Bootstrapper. Кнопка ставит все файлы в очередь Android DownloadManager; это только скачивание, не автоматическая установка. Совместимость отдельных .NET/WebView2 установщиков с Wine не гарантируется.
+
 ## Implemented in this increment
 
 - SevenX accepts Windows PE `.exe` programs and Windows Installer `.msi` databases.
