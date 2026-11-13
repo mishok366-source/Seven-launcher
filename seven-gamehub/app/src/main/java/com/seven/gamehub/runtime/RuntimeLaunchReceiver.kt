@@ -22,6 +22,10 @@ class RuntimeLaunchReceiver : BroadcastReceiver() {
             val item = source.optJSONObject(index) ?: continue
             val sameEntry = item.optString("uri") == sourceUri
             val installer = item.optBoolean("isInstaller", false)
+            if (started && sameEntry) {
+                item.put("launchCount", item.optInt("launchCount", 0) + 1)
+                item.put("lastLaunchedAt", System.currentTimeMillis())
+            }
             if (!(started && sameEntry && installer)) updated.put(item)
         }
 

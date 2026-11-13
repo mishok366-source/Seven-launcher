@@ -31,6 +31,13 @@ Planned pack groups and their intended scope are specified in [COMPATIBILITY_PAC
 
 **Important:** the pack plan is a target, not a claim that VC++, Microsoft .NET Framework, or WebView2 installers are already integrated. Each pack must have a verified source, version, checksum, dependencies, install/uninstall behavior, and device test before it is exposed as installable.
 
+## Game Manager 0.12.0
+
+- Search the imported game library by file name.
+- Mark entries as favorites; favorite state is stored with the library entry.
+- View launch history, launch count and last confirmed launch time. History is updated only when the SevenX Desktop bridge confirms process creation.
+- Removing an entry from the library does not delete the original Android file.
+
 ## Build outputs
 
 The CI workflow builds two APKs:
