@@ -132,20 +132,50 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
 
 private const val PREFS_NAME = "seven_gamehub_library"
 
+private data class DependencyDownload(val title: String, val url: String, val fileName: String)
+
+private val sevenXDependencyDownloads = listOf(
+    DependencyDownload("Visual C++ v14 x86", "https://aka.ms/vc14/vc_redist.x86.exe", "SevenX_vc_redist_x86.exe"),
+    DependencyDownload("Visual C++ v14 x64", "https://aka.ms/vc14/vc_redist.x64.exe", "SevenX_vc_redist_x64.exe"),
+    DependencyDownload("Visual C++ 2013 x86", "https://aka.ms/highdpimfc2013x86enu", "SevenX_vcredist2013_x86.exe"),
+    DependencyDownload("Visual C++ 2013 x64", "https://aka.ms/highdpimfc2013x64enu", "SevenX_vcredist2013_x64.exe"),
+    DependencyDownload("Wine Mono 11.3 x86", "https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.3.0/wine-mono-11.3.0-x86.msi", "SevenX_wine-mono-11.3.0-x86.msi"),
+    DependencyDownload("Wine Mono 11.3 ARM64", "https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.3.0/wine-mono-11.3.0-arm64.msi", "SevenX_wine-mono-11.3.0-arm64.msi"),
+    DependencyDownload(".NET Desktop Runtime 10 x86", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-x86.exe", "SevenX_windowsdesktop-runtime-10-x86.exe"),
+    DependencyDownload(".NET Desktop Runtime 10 x64", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-x64.exe", "SevenX_windowsdesktop-runtime-10-x64.exe"),
+    DependencyDownload(".NET Desktop Runtime 10 ARM64", "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-arm64.exe", "SevenX_windowsdesktop-runtime-10-arm64.exe"),
+    DependencyDownload(".NET Framework 4.8 offline", "https://download.microsoft.com/download/f/3/a/f3a6af84-da23-40a5-8d1c-49cc10c8e76f/NDP48-x86-x64-AllOS-ENU.exe", "SevenX_NDP48_offline.exe"),
+    DependencyDownload("WebView2 Evergreen Bootstrapper", "https://aka.ms/MicrosoftEdgeWebview2Setup.exe", "SevenX_WebView2Setup.exe")
+)
+
 private fun enqueueOfficialDependencyDownload(context: Context, title: String, url: String, fileName: String): Long {
-    require(url.startsWith("https://aka.ms/") || url.startsWith("https://go.microsoft.com/")) {
-        "Only allowlisted Microsoft download hosts are supported"
+    val uri = Uri.parse(url)
+    val allowed = uri.scheme == "https" && when (uri.host?.lowercase()) {
+        "aka.ms", "go.microsoft.com", "builds.dotnet.microsoft.com", "download.microsoft.com" -> true
+        "github.com" -> uri.path.orEmpty().startsWith("/wine-mono/wine-mono/releases/download/")
+        else -> false
     }
+    require(allowed) { "Dependency URL is not on the SevenX official-source allowlist" }
     val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-    val request = DownloadManager.Request(Uri.parse(url))
+    val request = DownloadManager.Request(uri)
         .setTitle(title)
-        .setDescription("Официальный пакет Microsoft • SevenX")
+        .setDescription("Пакет совместимости • SevenX")
         .setMimeType("application/octet-stream")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         .setAllowedOverMetered(true)
         .setAllowedOverRoaming(false)
         .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
     return manager.enqueue(request)
+}
+
+private fun enqueueAllDependencyDownloads(context: Context): Int {
+    var queued = 0
+    sevenXDependencyDownloads.forEach { dependency ->
+        runCatching {
+            enqueueOfficialDependencyDownload(context, dependency.title, dependency.url, dependency.fileName)
+        }.onSuccess { queued++ }
+    }
+    return queued
 }
 
 private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
@@ -847,6 +877,29 @@ private fun CompatibilityScreen(
             }
         }
         item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(Panel).border(1.dp, Color(0xFF514477), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Text("Полный набор зависимостей", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Spacer(Modifier.height(5.dp))
+                Text("Скачать все 11 пакетов сразу: VC++ x86/x64, Wine Mono, .NET Desktop Runtime 10, .NET Framework 4.8 и WebView2. Файлы сохраняются в общую папку Downloads. Загрузка может занять несколько сотен мегабайт.",
+                    color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        val queued = enqueueAllDependencyDownloads(context)
+                        onDownloadQueued("В очереди $queued из 11 пакетов")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF514477))
+                ) {
+                    Text("Скачать ВСЁ (11 файлов)")
+                }
+            }
+        }
+        item {
             CompatibilityPackCard(
                 title = "Visual C++ v14 (2017–2026; совместим с приложениями 2015+)",
                 description = "Общий актуальный runtime для приложений Visual Studio 2015 и новее. Выбирай x86 для 32-битных программ, x64 для 64-битных.",
@@ -891,32 +944,61 @@ private fun CompatibilityScreen(
         item {
             CompatibilityPackCard(
                 title = "Wine Mono",
-                description = "Сначала попробуй встроенный установщик Winlator: Start Menu → System Tools → Installers → Wine Mono. Отдельные релизы доступны по ссылке. Это не Microsoft .NET Framework и не современный .NET Desktop Runtime.",
+                description = "Скачиваются MSI Wine Mono 11.3 для x86 и ARM64. Это Wine-реализация .NET Framework, а не Microsoft .NET Desktop Runtime.",
                 actions = listOf("Релизы Wine Mono" to "https://github.com/wine-mono/wine-mono/releases"),
+                downloads = listOf(
+                    Triple("Скачать Wine Mono x86", sevenXDependencyDownloads[4].url, sevenXDependencyDownloads[4].fileName),
+                    Triple("Скачать Wine Mono ARM64", sevenXDependencyDownloads[5].url, sevenXDependencyDownloads[5].fileName)
+                ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://github.com/wine-mono/wine-mono/releases") }
+                },
                 onOpen = ::openOfficialPage
             )
         }
         item {
             CompatibilityPackCard(
                 title = "Microsoft .NET Framework",
-                description = "Устанавливай только версию, которую требует приложение. Совместимость конкретной версии с выбранной сборкой Wine не гарантируется.",
+                description = "В набор включён автономный установщик .NET Framework 4.8 x86/x64. Более старые ветки .NET Framework не входят в этот пакет.",
                 actions = listOf("Официальные загрузки .NET Framework" to "https://dotnet.microsoft.com/en-us/download/dotnet-framework"),
+                downloads = listOf(Triple("Скачать .NET Framework 4.8 offline", sevenXDependencyDownloads[9].url, sevenXDependencyDownloads[9].fileName)),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://dotnet.microsoft.com/en-us/download/dotnet-framework") }
+                },
                 onOpen = ::openOfficialPage
             )
         }
         item {
             CompatibilityPackCard(
                 title = "Современный .NET Desktop Runtime",
-                description = "Отдельная линейка .NET 6/7/8/9/10. Не является заменой .NET Framework; запуск под Wine/Box64 требует отдельной проверки.",
+                description = ".NET Desktop Runtime 10.0.15 для x86, x64 и ARM64. Это отдельная линейка, не замена .NET Framework; запуск под Wine требует проверки.",
                 actions = listOf("Официальные загрузки .NET" to "https://dotnet.microsoft.com/en-us/download/dotnet"),
+                downloads = (6..8).map { index ->
+                    Triple("Скачать " + sevenXDependencyDownloads[index].title, sevenXDependencyDownloads[index].url, sevenXDependencyDownloads[index].fileName)
+                },
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://dotnet.microsoft.com/en-us/download/dotnet") }
+                },
                 onOpen = ::openOfficialPage
             )
         }
         item {
             CompatibilityPackCard(
                 title = "Microsoft Edge WebView2",
-                description = "Экспериментальная совместимость. Наличие установщика не означает, что WebView2 Runtime или приложение на его основе заработает в Wine.",
+                description = "В набор включён официальный Evergreen Bootstrapper. Он небольшой и скачивает сам Runtime с серверов Microsoft при запуске установщика; офлайн standalone runtime пока не включён.",
                 actions = listOf("Официальная страница WebView2" to "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"),
+                downloads = listOf(Triple("Скачать WebView2 Bootstrapper", sevenXDependencyDownloads[10].url, sevenXDependencyDownloads[10].fileName)),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage("https://developer.microsoft.com/en-us/microsoft-edge/webview2/") }
+                },
                 onOpen = ::openOfficialPage
             )
         }
@@ -936,7 +1018,7 @@ private fun CompatibilityScreen(
             ) {
                 Text("Как установить зависимость", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text("1. Нажми «Скачать прямо в SevenX» у VC++ — загрузка пойдёт через Android Download Manager.\n2. После завершения импортируй EXE из папки загрузок приложения.\n3. Запусти установщик в том же Wine-контейнере, где работает приложение.",
+                Text("1. Нажми «Скачать ВСЁ» или выбери отдельные пакеты — загрузка пойдёт через Android Download Manager.\n2. После завершения импортируй нужные EXE/MSI из папки Downloads.\n3. Запусти установщик в том же Wine-контейнере, где работает приложение.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(onClick = onImportInstaller, modifier = Modifier.fillMaxWidth()) {
@@ -945,7 +1027,7 @@ private fun CompatibilityScreen(
                     Text("Импортировать скачанный EXE / MSI")
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("Прямое скачивание внутри SevenX включено для VC++ 2013 и v14. Для .NET, Wine Mono и WebView2 пока открываются официальные страницы: их установку в Wine нужно проверять отдельно. SevenX не запускает скачанные установщики без твоего подтверждения.",
+                Text("SevenX скачивает все перечисленные пакеты в Downloads, но не запускает их автоматически. Это набор установщиков разных архитектур и поколений: устанавливай нужные варианты по требованию программы. Совместимость .NET и WebView2 с Wine не гарантируется.",
                     color = Color(0xFFFFD28A), fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
