@@ -9,6 +9,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicBoolean
@@ -93,6 +94,7 @@ internal object DependencyInstaller {
                     destination
                 }
             } catch (error: Exception) {
+                if (error is CancellationException) throw error
                 failed += "${item.title}: загрузка — ${error.message ?: "ошибка"}"
                 onProgress("Не удалось скачать ${item.title}; перехожу к следующему пакету")
                 return@forEachIndexed
@@ -121,6 +123,7 @@ internal object DependencyInstaller {
                     onProgress("Установщик ${item.title} завершился с кодом $exitCode; продолжаю")
                 }
             } catch (error: Exception) {
+                if (error is CancellationException) throw error
                 failed += "${item.title}: ${error.message ?: "ошибка установки"}"
                 onProgress("Не удалось завершить ${item.title}; продолжаю")
             }
