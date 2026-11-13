@@ -234,9 +234,9 @@ replace_once(
     display,
     '            if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1");',
     '            if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1");\n'
-    '            if ("compatibility".equals(getIntent().getStringExtra("sevenx_profile"))) {\\n'
-    '                envVars.put("WINEESYNC", "0");\\n'
-    '                envVars.put("WINEFSYNC", "0");\\n'
+    '            if ("compatibility".equals(getIntent().getStringExtra("sevenx_profile"))) {\n'
+    '                envVars.put("WINEESYNC", "0");\n'
+    '                envVars.put("WINEFSYNC", "0");\n'
     '            }'
 )
 
