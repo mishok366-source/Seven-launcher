@@ -36,6 +36,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Verify SevenX 0.13 compatibility contract
+        run: python3 seven-gamehub/scripts/test-compatibility-contract.py
       - name: Apply SevenX launch bridge
         run: python3 seven-gamehub/scripts/apply-sevenx-winlator-bridge.py seven-gamehub/winlator-source
       - name: Harden SevenX installer hand-off
