@@ -46,7 +46,9 @@ internal interface WindowsRuntimeEngine {
         context: Context,
         executable: Uri,
         launchProfile: String = "default",
-        compatibilityHints: String = ""
+        compatibilityHints: String = "",
+        callbackToken: String? = null,
+        installArgs: String? = null
     ): RuntimeLaunchResult
 }
 
@@ -86,7 +88,9 @@ internal object WindowsRuntime : WindowsRuntimeEngine {
         context: Context,
         executable: Uri,
         launchProfile: String,
-        compatibilityHints: String
+        compatibilityHints: String,
+        callbackToken: String?,
+        installArgs: String?
     ): RuntimeLaunchResult {
         val sharedUri = runCatching {
             if (executable.scheme == "file") {
