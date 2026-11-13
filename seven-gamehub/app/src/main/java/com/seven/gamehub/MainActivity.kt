@@ -2,6 +2,7 @@ package com.seven.gamehub
 
 import android.net.Uri
 import android.content.Context
+import android.app.DownloadManager
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ShortcutInfo
@@ -9,6 +10,7 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.Build
+import android.os.Environment
 import java.io.File
 import java.util.UUID
 import java.util.Date
@@ -129,6 +131,22 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
 }
 
 private const val PREFS_NAME = "seven_gamehub_library"
+
+private fun enqueueOfficialDependencyDownload(context: Context, title: String, url: String, fileName: String): Long {
+    require(url.startsWith("https://aka.ms/") || url.startsWith("https://go.microsoft.com/")) {
+        "Only allowlisted Microsoft download hosts are supported"
+    }
+    val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    val request = DownloadManager.Request(Uri.parse(url))
+        .setTitle(title)
+        .setDescription("Официальный пакет Microsoft • SevenX")
+        .setMimeType("application/octet-stream")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setAllowedOverMetered(true)
+        .setAllowedOverRoaming(false)
+        .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+    return manager.enqueue(request)
+}
 
 private fun isExeName(name: String): Boolean = name.trim().lowercase().endsWith(".exe")
 private fun isMsiName(name: String): Boolean = name.trim().lowercase().endsWith(".msi")
@@ -545,6 +563,9 @@ private fun SevenGameHubApp(
             } else if (selectedTab == 2) {
                 CompatibilityScreen(
                     onImportInstaller = { selectedTab = 0; pickerIsInstaller = true; exePicker.launch(arrayOf("*/*")) },
+                    onDownloadQueued = { title ->
+                        scope.launch { snackbar.showSnackbar("$title: загрузка началась. После завершения импортируй файл в SevenX.") }
+                    },
                     modifier = Modifier.padding(padding)
                 )
             } else {
@@ -806,6 +827,7 @@ private fun HistoryScreen(
 @Composable
 private fun CompatibilityScreen(
     onImportInstaller: () -> Unit,
+    onDownloadQueued: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -828,10 +850,16 @@ private fun CompatibilityScreen(
             CompatibilityPackCard(
                 title = "Visual C++ v14 (2017–2026; совместим с приложениями 2015+)",
                 description = "Общий актуальный runtime для приложений Visual Studio 2015 и новее. Выбирай x86 для 32-битных программ, x64 для 64-битных.",
-                actions = listOf(
-                    "Скачать x86" to "https://aka.ms/vc14/vc_redist.x86.exe",
-                    "Скачать x64" to "https://aka.ms/vc14/vc_redist.x64.exe"
+                actions = listOf("Страница Microsoft" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
+                downloads = listOf(
+                    Triple("Скачать x86 прямо в SevenX", "https://aka.ms/vc14/vc_redist.x86.exe", "vc_redist.x86.exe"),
+                    Triple("Скачать x64 прямо в SevenX", "https://aka.ms/vc14/vc_redist.x64.exe", "vc_redist.x64.exe")
                 ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage(url) }
+                },
                 onOpen = ::openOfficialPage
             )
         }
@@ -839,10 +867,16 @@ private fun CompatibilityScreen(
             CompatibilityPackCard(
                 title = "Visual C++ 2013",
                 description = "Отдельный runtime; не заменяется пакетом v14. x86 и x64 устанавливаются рядом при необходимости.",
-                actions = listOf(
-                    "Скачать x86" to "https://aka.ms/highdpimfc2013x86enu",
-                    "Скачать x64" to "https://aka.ms/highdpimfc2013x64enu"
+                actions = listOf("Страница Microsoft" to "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist"),
+                downloads = listOf(
+                    Triple("Скачать x86 прямо в SevenX", "https://aka.ms/highdpimfc2013x86enu", "vcredist2013_x86.exe"),
+                    Triple("Скачать x64 прямо в SevenX", "https://aka.ms/highdpimfc2013x64enu", "vcredist2013_x64.exe")
                 ),
+                onDownload = { title, url, fileName ->
+                    runCatching { enqueueOfficialDependencyDownload(context, title, url, fileName) }
+                        .onSuccess { onDownloadQueued(title) }
+                        .onFailure { openOfficialPage(url) }
+                },
                 onOpen = ::openOfficialPage
             )
         }
@@ -911,7 +945,7 @@ private fun CompatibilityScreen(
                     Text("Импортировать скачанный EXE / MSI")
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("SevenX пока не скачивает эти пакеты в фоне и не заявляет их как проверенные. Установка установщика не равна подтверждённой совместимости приложения.",
+                Text("Прямое скачивание внутри SevenX включено для VC++ 2013 и v14. Для .NET, Wine Mono и WebView2 пока открываются официальные страницы: их установку в Wine нужно проверять отдельно. SevenX не запускает скачанные установщики без твоего подтверждения.",
                     color = Color(0xFFFFD28A), fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
@@ -924,6 +958,8 @@ private fun CompatibilityPackCard(
     title: String,
     description: String,
     actions: List<Pair<String, String>>,
+    downloads: List<Triple<String, String, String>> = emptyList(),
+    onDownload: (String, String, String) -> Unit = { _, _, _ -> },
     onOpen: (String) -> Unit
 ) {
     Column(
@@ -935,6 +971,12 @@ private fun CompatibilityPackCard(
         Spacer(Modifier.height(5.dp))
         Text(description, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
         Spacer(Modifier.height(9.dp))
+        downloads.forEach { action ->
+            Button(onClick = { onDownload(action.first, action.second, action.third) }, modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF39305F))) {
+                Text(action.first, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         actions.forEach { action ->
             OutlinedButton(onClick = { onOpen(action.second) }, modifier = Modifier.fillMaxWidth()) {
                 Text(action.first, maxLines = 1, overflow = TextOverflow.Ellipsis)
