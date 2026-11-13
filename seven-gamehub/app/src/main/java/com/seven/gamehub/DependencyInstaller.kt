@@ -174,7 +174,7 @@ internal object DependencyInstaller {
                                 random.seek(peOffset)
                                 val signature = ByteArray(4)
                                 random.readFully(signature)
-                                signature.contentEquals(byteArrayOf(0x50, 0x45, 0x00, 0x00))
+                                signature.contentEquals(byteArrayOf(0x50.toByte(), 0x45.toByte(), 0x00.toByte(), 0x00.toByte()))
                             }
                         }
                     }
