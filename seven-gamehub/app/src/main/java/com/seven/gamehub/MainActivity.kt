@@ -11,6 +11,9 @@ import android.os.Bundle
 import android.os.Build
 import java.io.File
 import java.util.UUID
+import java.util.Date
+import java.util.Locale
+import java.text.SimpleDateFormat
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import androidx.activity.ComponentActivity
@@ -39,6 +42,9 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
@@ -50,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -89,7 +96,14 @@ private val Muted = Color(0xFF8D98AC)
 private val Accent = Color(0xFF9B7BFF)
 private val AccentBlue = Color(0xFF54C7F5)
 
-private data class GameEntry(val name: String, val uri: Uri, val isInstaller: Boolean = false)
+private data class GameEntry(
+    val name: String,
+    val uri: Uri,
+    val isInstaller: Boolean = false,
+    val isFavorite: Boolean = false,
+    val launchCount: Int = 0,
+    val lastLaunchedAt: Long = 0L
+)
 
 private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
     if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return false
@@ -229,7 +243,13 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                 val providerFileExists = savedUri.authority == "${context.packageName}.files" &&
                     runCatching { context.contentResolver.openFileDescriptor(savedUri, "r")?.use { true } ?: false }.getOrDefault(false)
                 if (privateFileExists || providerFileExists || uriString in permissions) {
-                    add(GameEntry(item.getString("name"), savedUri, item.optBoolean("isInstaller", false)))
+                    add(GameEntry(
+                        item.getString("name"), savedUri,
+                        item.optBoolean("isInstaller", false),
+                        item.optBoolean("isFavorite", false),
+                        item.optInt("launchCount", 0),
+                        item.optLong("lastLaunchedAt", 0L)
+                    ))
                 }
             }
         }
@@ -239,7 +259,13 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
 private fun saveGames(context: android.content.Context, games: List<GameEntry>) {
     val array = org.json.JSONArray()
     games.forEach { game ->
-        array.put(org.json.JSONObject().put("name", game.name).put("uri", game.uri.toString()).put("isInstaller", game.isInstaller))
+        array.put(org.json.JSONObject()
+            .put("name", game.name)
+            .put("uri", game.uri.toString())
+            .put("isInstaller", game.isInstaller)
+            .put("isFavorite", game.isFavorite)
+            .put("launchCount", game.launchCount)
+            .put("lastLaunchedAt", game.lastLaunchedAt))
     }
     context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit().putString(PREFS_GAMES, array.toString()).apply()
@@ -407,6 +433,11 @@ private fun SevenGameHubApp(
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1, onClick = { selectedTab = 1 },
+                        icon = { androidx.compose.material3.Icon(Icons.Rounded.History, null) },
+                        label = { Text("История") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2, onClick = { selectedTab = 2 },
                         icon = { androidx.compose.material3.Icon(Icons.Rounded.Tune, null) },
                         label = { Text("Настройки") }
                     )
@@ -418,6 +449,9 @@ private fun SevenGameHubApp(
                     games = games,
                     onAdd = { pickerIsInstaller = false; exePicker.launch(arrayOf("*/*")) },
                     onAddSetup = { pickerIsInstaller = true; exePicker.launch(arrayOf("*/*")) },
+                    onToggleFavorite = { game ->
+                        games = games.map { if (it.uri == game.uri) it.copy(isFavorite = !it.isFavorite) else it }
+                    },
                     onPinShortcut = { game ->
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
@@ -451,6 +485,24 @@ private fun SevenGameHubApp(
                     },
                     modifier = Modifier.padding(padding)
                 )
+            } else if (selectedTab == 1) {
+                HistoryScreen(
+                    games = games,
+                    onRun = { game ->
+                        scope.launch {
+                            when (WindowsRuntime.launch(context, game.uri)) {
+                                RuntimeLaunchResult.STARTED, RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar("${game.name} передан в Winlator")
+                                RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar("Winlator с поддержкой SevenX не установлен")
+                                RuntimeLaunchResult.FAILED -> snackbar.showSnackbar("Не удалось запустить ${game.name}")
+                            }
+                        }
+                    },
+                    onPinShortcut = { game ->
+                        val pinned = pinGameShortcut(context, game)
+                        scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
+                    },
+                    modifier = Modifier.padding(padding)
+                )
             } else {
                 SettingsScreen(modifier = Modifier.padding(padding))
             }
@@ -464,10 +516,13 @@ private fun LibraryScreen(
     onAdd: () -> Unit,
     onAddSetup: () -> Unit,
     onPinShortcut: (GameEntry) -> Unit,
+    onToggleFavorite: (GameEntry) -> Unit,
     onRemove: (GameEntry) -> Unit,
     onRun: (GameEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val visibleGames = games.filter { it.name.contains(searchQuery, ignoreCase = true) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -544,10 +599,20 @@ private fun LibraryScreen(
             }
         }
         item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Поиск по библиотеке") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Rounded.FolderOpen, null) }
+            )
+        }
+        item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("МОЯ БИБЛИОТЕКА", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                 Spacer(Modifier.weight(1f))
-                Text("${games.size} ИГР", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("${visibleGames.size} ИГР", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
         if (games.isEmpty()) {
@@ -574,11 +639,12 @@ private fun LibraryScreen(
                 }
             }
         } else {
-            items(games, key = { it.uri.toString() }) { game ->
+            items(visibleGames, key = { it.uri.toString() }) { game ->
                 GameCard(
                     game = game,
                     onRun = { onRun(game) },
                     onPinShortcut = { onPinShortcut(game) },
+                    onToggleFavorite = { onToggleFavorite(game) },
                     onRemove = { onRemove(game) }
                 )
             }
@@ -587,14 +653,20 @@ private fun LibraryScreen(
             Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Icon(Icons.Rounded.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Версия 0.8.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
+                Text("Версия 0.12.0 • SevenX Desktop", color = Muted, fontSize = 11.sp)
             }
         }
     }
 }
 
 @Composable
-private fun GameCard(game: GameEntry, onRun: () -> Unit, onPinShortcut: () -> Unit, onRemove: () -> Unit) {
+private fun GameCard(
+    game: GameEntry,
+    onRun: () -> Unit,
+    onPinShortcut: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onRemove: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)
             .border(1.dp, Color(0xFF283142), RoundedCornerShape(18.dp)).padding(14.dp),
@@ -612,11 +684,58 @@ private fun GameCard(game: GameEntry, onRun: () -> Unit, onPinShortcut: () -> Un
         OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
             androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
         }
+        IconButton(onClick = onToggleFavorite) {
+            androidx.compose.material3.Icon(
+                if (game.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                "Избранное", tint = if (game.isFavorite) Color(0xFFFFD166) else Muted
+            )
+        }
         IconButton(onClick = onPinShortcut) {
             androidx.compose.material3.Icon(Icons.Rounded.Add, "Ярлык на рабочий стол", tint = AccentBlue)
         }
         IconButton(onClick = onRemove) {
             androidx.compose.material3.Icon(Icons.Rounded.Delete, "Удалить из библиотеки", tint = Muted)
+        }
+    }
+}
+
+@Composable
+private fun HistoryScreen(
+    games: List<GameEntry>,
+    onRun: (GameEntry) -> Unit,
+    onPinShortcut: (GameEntry) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val history = games.filter { it.launchCount > 0 }
+        .sortedByDescending { it.lastLaunchedAt }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Text("История запусков", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Text("Только подтверждённые запуски", color = Muted, fontSize = 13.sp)
+        }
+        if (history.isEmpty()) {
+            item { Text("Пока нет подтверждённых запусков", color = Muted) }
+        } else {
+            items(history, key = { it.uri.toString() }) { game ->
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    GameCard(
+                        game = game,
+                        onRun = { onRun(game) },
+                        onPinShortcut = { onPinShortcut(game) },
+                        onToggleFavorite = {},
+                        onRemove = {}
+                    )
+                    Text(
+                        "Запусков: ${game.launchCount} • Последний: " +
+                            SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(game.lastLaunchedAt)),
+                        color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
         }
     }
 }
