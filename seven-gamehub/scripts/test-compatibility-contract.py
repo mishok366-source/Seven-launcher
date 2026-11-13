@@ -25,6 +25,8 @@ checks = {
     "First launch automatically creates a default Wine container": 'createContainerAsync(new JSONObject()' in hardening and "Контейнеров нет. Сначала создай контейнер" not in hardening,
     "Bridge automatically reuses the active Wine container": 'activeContainerLink' in hardening and 'containerManager.activateContainer(selectedContainer)' in hardening and 'Выбери Wine-контейнер' not in hardening,
     "Bundled VC++ dependencies are enabled automatically for existing prefixes": 'prepareBundledDependencies(container)' in hardening and '.replace("vcrun2005=0", "vcrun2005=1")' in hardening and '.replace("vcrun2010=0", "vcrun2010=1")' in hardening,
+    "PE dependency analyzer identifies architecture and common runtime DLLs": "WindowsDependencyAnalyzer.analyze" in manager and "mscoree.dll" in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8") and "vcruntime" in (ROOT / "app/src/main/java/com/seven/gamehub/WindowsDependencyAnalyzer.kt").read_text(encoding="utf-8"),
+    "Detected compatibility hints are persisted and shown in the library": "compatibilityHints" in manager and "WindowsDependencyAnalyzer.analyze(context, uri)" in manager,
     "Winlator rebranding is deferred": 'SevenX Desktop' not in bridge and 'SevenXComponentsFragment' not in bridge,
 }
 
