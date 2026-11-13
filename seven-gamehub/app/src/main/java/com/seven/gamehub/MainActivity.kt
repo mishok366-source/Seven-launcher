@@ -102,7 +102,8 @@ private data class GameEntry(
     val isInstaller: Boolean = false,
     val isFavorite: Boolean = false,
     val launchCount: Int = 0,
-    val lastLaunchedAt: Long = 0L
+    val lastLaunchedAt: Long = 0L,
+    val launchProfile: String = "default"
 )
 
 private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
@@ -114,6 +115,7 @@ private fun pinGameShortcut(context: Context, game: GameEntry): Boolean {
         putExtra("sevenx_game_uri", game.uri.toString())
         putExtra("sevenx_game_name", game.name)
         putExtra("sevenx_game_is_installer", game.isInstaller)
+        putExtra("sevenx_game_profile", game.launchProfile)
         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
     val shortcut = ShortcutInfo.Builder(context, "sevenx_" + game.uri.toString().hashCode())
@@ -270,7 +272,8 @@ private fun loadSavedGames(context: android.content.Context): List<GameEntry> {
                         item.optBoolean("isInstaller", false),
                         item.optBoolean("isFavorite", false),
                         item.optInt("launchCount", 0),
-                        item.optLong("lastLaunchedAt", 0L)
+                        item.optLong("lastLaunchedAt", 0L),
+                        item.optString("launchProfile", "default")
                     ))
                 }
             }
@@ -287,7 +290,8 @@ private fun saveGames(context: android.content.Context, games: List<GameEntry>) 
             .put("isInstaller", game.isInstaller)
             .put("isFavorite", game.isFavorite)
             .put("launchCount", game.launchCount)
-            .put("lastLaunchedAt", game.lastLaunchedAt))
+            .put("lastLaunchedAt", game.lastLaunchedAt)
+            .put("launchProfile", game.launchProfile))
     }
     context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         .edit().putString(PREFS_GAMES, array.toString()).apply()
@@ -378,7 +382,7 @@ private fun SevenGameHubApp(
             val targetGame = games.firstOrNull { it.uri.toString() == targetUri }
             if (targetGame != null) {
                 selectedTab = 0
-                when (WindowsRuntime.launch(context, targetGame.uri)) {
+                when (WindowsRuntime.launch(context, targetGame.uri, targetGame.launchProfile)) {
                     RuntimeLaunchResult.STARTED -> snackbar.showSnackbar("${targetGame.name} запущен")
                     RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar(
                         "${targetGame.name} передан в Winlator. Ждём подтверждения запуска."
@@ -475,6 +479,9 @@ private fun SevenGameHubApp(
                     onToggleFavorite = { game ->
                         games = games.map { if (it.uri == game.uri) it.copy(isFavorite = !it.isFavorite) else it }
                     },
+                    onCycleProfile = { game ->
+                        games = games.map { if (it.uri == game.uri) it.copy(launchProfile = if (it.launchProfile == "compatibility") "default" else "compatibility") else it }
+                    },
                     onPinShortcut = { game ->
                         val pinned = pinGameShortcut(context, game)
                         scope.launch { snackbar.showSnackbar(if (pinned) "Запрос на создание ярлыка отправлен" else "Не удалось закрепить ярлык") }
@@ -484,7 +491,7 @@ private fun SevenGameHubApp(
                     },
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game.uri)) {
+                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile)) {
                                 RuntimeLaunchResult.STARTED -> {
                                     if (game.isInstaller) {
                                         // Remove only the library entry. Do not delete game.uri or its file.
@@ -513,7 +520,7 @@ private fun SevenGameHubApp(
                     games = games,
                     onRun = { game ->
                         scope.launch {
-                            when (WindowsRuntime.launch(context, game.uri)) {
+                            when (WindowsRuntime.launch(context, game.uri, game.launchProfile)) {
                                 RuntimeLaunchResult.STARTED, RuntimeLaunchResult.LAUNCH_REQUESTED -> snackbar.showSnackbar("${game.name} передан в Winlator")
                                 RuntimeLaunchResult.NOT_INSTALLED -> snackbar.showSnackbar("Winlator с поддержкой SevenX не установлен")
                                 RuntimeLaunchResult.FAILED -> snackbar.showSnackbar("Не удалось запустить ${game.name}")
@@ -540,6 +547,7 @@ private fun LibraryScreen(
     onAddSetup: () -> Unit,
     onPinShortcut: (GameEntry) -> Unit,
     onToggleFavorite: (GameEntry) -> Unit,
+    onCycleProfile: (GameEntry) -> Unit,
     onRemove: (GameEntry) -> Unit,
     onRun: (GameEntry) -> Unit,
     modifier: Modifier = Modifier
@@ -668,6 +676,7 @@ private fun LibraryScreen(
                     onRun = { onRun(game) },
                     onPinShortcut = { onPinShortcut(game) },
                     onToggleFavorite = { onToggleFavorite(game) },
+                    onCycleProfile = { onCycleProfile(game) },
                     onRemove = { onRemove(game) }
                 )
             }
@@ -688,6 +697,7 @@ private fun GameCard(
     onRun: () -> Unit,
     onPinShortcut: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onCycleProfile: () -> Unit,
     onRemove: () -> Unit
 ) {
     Row(
@@ -703,6 +713,9 @@ private fun GameCard(
             Text(game.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
             Text(if (isMsiName(game.name)) "Windows • MSI installer" else if (game.isInstaller) "Windows • SETUP" else "Windows • EXE", color = Muted, fontSize = 12.sp)
+            OutlinedButton(onClick = onCycleProfile, shape = RoundedCornerShape(9.dp)) {
+                Text(if (game.launchProfile == "compatibility") "Профиль: совместимость" else "Профиль: стандарт", fontSize = 10.sp)
+            }
         }
         OutlinedButton(onClick = onRun, shape = RoundedCornerShape(12.dp)) {
             androidx.compose.material3.Icon(Icons.Rounded.PlayArrow, "Запустить", modifier = Modifier.size(19.dp))
