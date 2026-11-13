@@ -10,6 +10,7 @@ main_activity = root / "app/src/main/java/com/winlator/MainActivity.java"
 display = root / "app/src/main/java/com/winlator/XServerDisplayActivity.java"
 launcher = root / "app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java"
 bridge = root / "app/src/main/java/com/winlator/SevenXBridgeActivity.java"
+process_helper = root / "app/src/main/java/com/winlator/core/ProcessHelper.java"
 
 def replace_once(path: Path, old: str, new: str):
     content = path.read_text(encoding="utf-8")
@@ -67,7 +68,12 @@ replace_once(
 replace_once(
     display,
     "import android.app.PictureInPictureParams;\n",
-    "import android.app.PictureInPictureParams;\nimport android.app.PendingIntent;\n"
+    "import android.app.PictureInPictureParams;\nimport android.app.AlertDialog;\nimport android.app.PendingIntent;\n"
+)
+replace_once(
+    display,
+    "import android.os.Bundle;\n",
+    "import android.os.Bundle;\nimport android.os.Handler;\nimport android.os.Looper;\n"
 )
 replace_once(
     display,
@@ -88,7 +94,64 @@ replace_once(
     "                }\n"
     "                catch (PendingIntent.CanceledException ignored) {}\n"
     "            }\n"
+    "            if (pid <= 0) {\n"
+    "                runOnUiThread(() -> {\n"
+    "                    android.widget.Toast.makeText(this, \"Wine не смог запустить гостевой процесс. Смотри журнал SevenX/Winlator.\", android.widget.Toast.LENGTH_LONG).show();\n"
+    "                    finish();\n"
+    "                });\n"
+    "            }\n"
     "        });\n"
+)
+
+replace_once(
+    display,
+    "        preloaderDialog.show(R.string.starting_up);\n",
+    "        preloaderDialog.show(R.string.starting_up);\n"
+    "        // Do not leave SevenX on Winlator's preloader forever if Wine never maps a window.\n"
+    "        new Handler(Looper.getMainLooper()).postDelayed(() -> {\n"
+    "            if (!isFinishing() && preloaderDialog.isShowing()) {\n"
+    "                if (environment != null) environment.stopEnvironmentComponents();\n"
+    "                preloaderDialog.close();\n"
+    "                new AlertDialog.Builder(this).setTitle(\"SevenX\")\n"
+    "                    .setMessage(\"Winlator не создал окно Wine за 5 минут. Запуск остановлен. Проверь журнал запуска и настройки графики.\")\n"
+    "                    .setPositiveButton(\"Закрыть\", (dialog, which) -> finish())\n"
+    "                    .setCancelable(false).show();\n"
+    "            }\n"
+    "        }, 300_000L);\n"
+)
+
+replace_once(
+    display,
+    """        Executors.newSingleThreadExecutor().execute(() -> {
+            if (!isGenerateWineprefix()) {
+                setupWineSystemFiles();
+                extractGraphicsDriverFiles();
+                changeWineAudioDriver();
+            }
+            setupXEnvironment();
+        });""",
+    """        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                if (!isGenerateWineprefix()) {
+                    setupWineSystemFiles();
+                    extractGraphicsDriverFiles();
+                    changeWineAudioDriver();
+                }
+                if (!isFinishing()) setupXEnvironment();
+            }
+            catch (Throwable error) {
+                android.util.Log.e("SevenXStartup", "Failed to prepare Winlator environment", error);
+                runOnUiThread(() -> {
+                    if (isFinishing()) return;
+                    preloaderDialog.close();
+                    String detail = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+                    new AlertDialog.Builder(this).setTitle("SevenX")
+                        .setMessage("Не удалось подготовить окружение Winlator: " + detail)
+                        .setPositiveButton("Закрыть", (dialog, which) -> finish())
+                        .setCancelable(false).show();
+                });
+            }
+        });"""
 )
 
 replace_once(
@@ -99,6 +162,15 @@ replace_once(
             String desktopName = shortcut != null || getIntent().hasExtra("exec_path") ? "nogui" : "shell";
             String desktopCommand = "wine explorer /desktop="+desktopName+","+xServer.screenInfo;
             String guestExecutable = sevenxDesktopMode ? desktopCommand : desktopCommand+" "+getWineStartCommand();"""
+)
+
+replace_once(
+    process_helper,
+    "        catch (Exception e) {}\n        return pid;",
+    "        catch (Exception e) {\n"
+    "            android.util.Log.e(\"SevenXProcess\", \"Failed to start guest command: \" + command, e);\n"
+    "        }\n"
+    "        return pid;"
 )
 
 bridge.parent.mkdir(parents=True, exist_ok=True)
